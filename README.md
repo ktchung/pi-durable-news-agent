@@ -6,6 +6,8 @@ This fork retains the upstream workspace layout and history, adding app-owned
 Codex subscription authentication, provider-aware model/reasoning controls,
 provider-neutral Jev defaults, and persisted timezone-aware cron scheduling.
 For the source-built Docker/Gluetun deployment, use [the deployment guide](docs/DOCKER.md).
+The [optional scoped bridge](docs/BRIDGE.md) adds one service using the same image
+for narrowly authorized API readers and schedule administrators.
 Automation is opt-in; no provider credentials or runtime data belong in Git.
 The original upstream introduction and installation options remain below.
 

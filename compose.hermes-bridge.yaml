@@ -1,0 +1,65 @@
+# Optional sidecar, built into the same custom image as the core services.
+# Gluetun stays on the private project network; only the bridge joins a shared one.
+services:
+  gluetun:
+    environment:
+      FIREWALL_INPUT_PORTS: "4850,4851"
+    networks:
+      default:
+        aliases: ["${DNA_BRIDGE_PRIVATE_ALIAS:-news-private-api}"]
+  hermes-bridge:
+    image: ${DNA_IMAGE:-pi-durable-news-agent:local}
+    pull_policy: never
+    user: "${PUID:-1000}:${PGID:-1000}"
+    command: [bridge]
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    stop_grace_period: 20s
+    environment:
+      DNA_CLIENT_TOKEN: ${DNA_CLIENT_TOKEN:-}
+      DNA_BRIDGE_UPSTREAM: ${DNA_BRIDGE_UPSTREAM:-http://news-private-api:4850}
+      DNA_BRIDGE_READ_TOKEN_PATH: /run/news-read.token
+      DNA_BRIDGE_ADMIN_TOKEN_PATH: /run/news-admin.token
+    volumes:
+      - type: bind
+        source: ${DNA_BRIDGE_READ_TOKEN_FILE:-./bridge-secrets/read-token}
+        target: /run/news-read.token
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${DNA_BRIDGE_ADMIN_TOKEN_FILE:-./bridge-secrets/admin-token}
+        target: /run/news-admin.token
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      gluetun:
+        condition: service_healthy
+        restart: true
+      api:
+        condition: service_healthy
+    networks:
+      default: {}
+      hermes-control:
+        aliases: ["${DNA_BRIDGE_ALIAS:-news-control}"]
+    healthcheck:
+      test: [CMD, node, /opt/dna-container/healthcheck.mjs, bridge]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+networks:
+  default: {}
+  hermes-control:
+    external: true
+    name: ${DNA_BRIDGE_NETWORK:-shared-services}
