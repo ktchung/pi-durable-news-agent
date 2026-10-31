@@ -11,12 +11,15 @@ import {
   type WireMessage,
 } from "@dna/sdk";
 import { agentState } from "../agent-state.ts";
-import { DEEP_THINKING, MAX_DEEP_RESEARCHERS, setDeepResearch } from "../news/deep-research.ts";
+import {
+  deepResearchSetting,
+  MAX_DEEP_RESEARCHERS,
+  setDeepResearch,
+} from "../news/deep-research.ts";
+import { selectModel } from "../news/model-selection.ts";
 import { toolParams } from "../news/tool-params.ts";
 import { ApiFault, invalid, notFound, optInt } from "../errors.ts";
 import { bodyOf, bool, num, oneOf, str, type Handlers, type RouteDeps } from "./types.ts";
-
-const THINKING = ["off", "minimal", "low", "medium", "high"] as const;
 
 export function agentRoutes({
   app,
@@ -109,17 +112,19 @@ export function agentRoutes({
     "agent.get": async (_req, res) => res.json(await agentState(app)),
     "agent.config": async (req, res) => {
       const body = bodyOf(req);
+      const effort = (key: string) => {
+        const value = body[key];
+        if (value === undefined) return undefined;
+        if (typeof value !== "string" || !value || value.length > 40)
+          throw invalid(`${key} must be a non empty string of 40 characters or fewer`);
+        return value;
+      };
       const model = str(body, "model", { max: 120, optional: true });
-      const thinkingLevel = oneOf(body.thinkingLevel, "thinkingLevel", THINKING, true);
+      const thinkingLevel = effort("thinkingLevel");
       const quickModel = str(body, "quickModel", { max: 120, optional: true });
-      const quickThinking = oneOf(body.quickThinking, "quickThinking", THINKING, true);
+      const quickThinking = effort("quickThinking");
       const deepResearchModel = str(body, "deepResearchModel", { max: 120, optional: true });
-      const deepResearchThinking = oneOf(
-        body.deepResearchThinking,
-        "deepResearchThinking",
-        DEEP_THINKING,
-        true,
-      );
+      const deepResearchThinking = effort("deepResearchThinking");
       const deepResearchCount = num(body, "deepResearchCount", {
         min: 1,
         max: MAX_DEEP_RESEARCHERS,
@@ -137,37 +142,61 @@ export function agentRoutes({
         throw invalid(
           "Send model, thinkingLevel, quickModel, quickThinking, deepResearchModel, deepResearchThinking, deepResearchCount, or a mix",
         );
-      for (const id of [model, quickModel, deepResearchModel])
-        if (id && !app.catalog.info(id))
-          throw invalid(
-            `Unknown model ${id}. Known: ${app.catalog
-              .list()
-              .map((m) => m.id)
-              .join(", ")}`,
-          );
-      if (quickModel || quickThinking)
-        app.quick.set({
-          ...(quickModel ? { model: quickModel } : {}),
-          ...(quickThinking ? { thinkingLevel: quickThinking } : {}),
-        });
-      if (deepResearchModel || deepResearchThinking || deepResearchCount !== undefined)
-        setDeepResearch(app.store, app.log, {
-          ...(deepResearchModel ? { model: deepResearchModel } : {}),
-          ...(deepResearchThinking ? { thinkingLevel: deepResearchThinking } : {}),
-          ...(deepResearchCount !== undefined ? { count: deepResearchCount } : {}),
-        });
-      if (!model && !thinkingLevel) return res.json(await agentState(app));
-      await app.main.configure(
-        {
-          ...(model ? { model: app.catalog.ref(model) } : {}),
-          ...(thinkingLevel ? { thinkingLevel } : {}),
-        },
-        ctx,
-      );
-      if (model) {
-        app.store.settings.set("model", model);
+      // Plan every requested pair (and model reference) before any setting is written.
+      // In particular, an invalid research effort must not partially change main/quick.
+      const current = await app.main.agent(ctx);
+      const main =
+        model || thinkingLevel
+          ? selectModel(
+              app.catalog,
+              {
+                model: current.model?.modelId ?? app.catalog.defaultModel.modelId,
+                thinkingLevel: current.thinkingLevel,
+              },
+              { model, thinkingLevel },
+            )
+          : undefined;
+      const mainRef = main ? app.catalog.ref(main.model) : undefined;
+      const quick =
+        quickModel || quickThinking
+          ? selectModel(
+              app.catalog,
+              app.quick.setting(),
+              {
+                model: quickModel,
+                thinkingLevel: quickThinking,
+              },
+              "quickThinking",
+            )
+          : undefined;
+      const deep =
+        deepResearchModel || deepResearchThinking || deepResearchCount !== undefined
+          ? selectModel(
+              app.catalog,
+              deepResearchSetting(app.store, app.catalog),
+              {
+                model: deepResearchModel,
+                thinkingLevel: deepResearchThinking,
+              },
+              "deepResearchThinking",
+            )
+          : undefined;
+      if (main) {
+        await app.main.configure({ model: mainRef, thinkingLevel: main.thinkingLevel }, ctx);
+        app.store.settings.set("model", main.model);
         await app.refreshModel();
       }
+      if (quick) app.quick.set(quick);
+      if (deep)
+        setDeepResearch(
+          app.store,
+          app.log,
+          {
+            ...deep,
+            ...(deepResearchCount !== undefined ? { count: deepResearchCount } : {}),
+          },
+          app.catalog,
+        );
       app.log.info("agent.configured", { model, thinkingLevel });
       res.json(await agentState(app));
     },

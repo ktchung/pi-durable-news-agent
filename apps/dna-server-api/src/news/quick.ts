@@ -3,9 +3,9 @@
 import type { ModelCatalog } from "@dna/durable-agent";
 import type { Logger } from "@dna/sdk/node";
 import type { Store } from "../db/store.ts";
+import { catalogSelection, selectModel, type ModelSelection } from "./model-selection.ts";
 
-export const QUICK_THINKING = ["off", "minimal", "low", "medium", "high"] as const;
-export type QuickThinking = (typeof QUICK_THINKING)[number];
+export type QuickThinking = ModelSelection["thinkingLevel"];
 
 export interface QuickSetting {
   model: string;
@@ -21,11 +21,13 @@ export class Quick {
   constructor(private readonly deps: { catalog: ModelCatalog; store: Store; log: Logger }) {}
 
   setting(): QuickSetting {
-    return { ...DEFAULT_QUICK, ...this.deps.store.settings.get("quick", DEFAULT_QUICK) };
+    const saved = { ...DEFAULT_QUICK, ...this.deps.store.settings.get("quick", DEFAULT_QUICK) };
+    const { catalog } = this.deps;
+    return catalog.provider === "codex" ? catalogSelection(catalog, saved) : saved;
   }
 
   set(patch: Partial<QuickSetting>): QuickSetting {
-    const next = { ...this.setting(), ...patch };
+    const next = selectModel(this.deps.catalog, this.setting(), patch, "quickThinking");
     this.deps.store.settings.set("quick", next);
     this.deps.log.info("quick.configured", { ...next });
     return next;

@@ -7,13 +7,13 @@ import { join } from "node:path";
 import type { Context } from "@earendil-works/chord";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { AssistantEntry, defineTask, type ConversationId } from "@earendil-works/pi-durable";
-import { answerTextOf, loadPrompt, runParallel } from "@dna/durable-agent";
+import { answerTextOf, loadPrompt, runParallel, type ModelCatalog } from "@dna/durable-agent";
 import type { Logger } from "@dna/sdk/node";
 import type { Store } from "../db/store.ts";
 import type { Deps } from "../deps.ts";
+import { catalogSelection, selectModel, type ModelSelection } from "./model-selection.ts";
 
-export const DEEP_THINKING = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
-export type DeepThinking = (typeof DEEP_THINKING)[number];
+export type DeepThinking = ModelSelection["thinkingLevel"];
 export const MAX_DEEP_RESEARCHERS = 5;
 
 export interface DeepResearchSetting {
@@ -29,16 +29,26 @@ export const DEFAULT_DEEP_RESEARCH: DeepResearchSetting = {
   count: 1,
 };
 
-export function deepResearchSetting(store: Store): DeepResearchSetting {
-  return { ...DEFAULT_DEEP_RESEARCH, ...store.settings.get("deepResearch", DEFAULT_DEEP_RESEARCH) };
+export function deepResearchSetting(store: Store, catalog?: ModelCatalog): DeepResearchSetting {
+  const saved = {
+    ...DEFAULT_DEEP_RESEARCH,
+    ...store.settings.get("deepResearch", DEFAULT_DEEP_RESEARCH),
+  };
+  return catalog?.provider === "codex" ? { ...saved, ...catalogSelection(catalog, saved) } : saved;
 }
 
 export function setDeepResearch(
   store: Store,
   log: Logger,
   patch: Partial<DeepResearchSetting>,
+  catalog?: ModelCatalog,
 ): DeepResearchSetting {
-  const next = { ...deepResearchSetting(store), ...patch };
+  const current = deepResearchSetting(store, catalog);
+  const next = {
+    ...current,
+    ...patch,
+    ...(catalog ? selectModel(catalog, current, patch, "deepResearchThinking") : {}),
+  };
   store.settings.set("deepResearch", next);
   log.info("deep_research.configured", { ...next });
   return next;

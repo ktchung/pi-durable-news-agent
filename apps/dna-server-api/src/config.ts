@@ -14,7 +14,8 @@ export interface Config {
   rootDir: string;
   configDir: string;
   promptsDir: string;
-  provider: "openrouter" | "faux";
+  provider: "openrouter" | "faux" | "codex";
+  codexAuthDir: string;
   jevBackend: "auto" | "fixture" | "mock" | "openrouter" | "typesafe";
   /** auto | web | fallback | firecrawl | fixture; SearchService warns on anything else and searches the web. */
   searchMode: string;
@@ -54,7 +55,8 @@ export function loadConfig(argv = process.argv.slice(2), env = process.env): Con
     strict: false,
   });
   const rootDir = repoRoot();
-  const provider = env.DNA_PROVIDER === "faux" ? "faux" : "openrouter";
+  const provider =
+    env.DNA_PROVIDER === "faux" ? "faux" : env.DNA_PROVIDER === "codex" ? "codex" : "openrouter";
   const searchMode = env.DNA_SEARCH_MODE?.trim() || "auto";
   const config: Config = {
     device: String(values.device ?? env.DNA_DEVICE_NAME ?? "local"),
@@ -67,6 +69,7 @@ export function loadConfig(argv = process.argv.slice(2), env = process.env): Con
     configDir: join(APP_DIR, "config"),
     promptsDir: join(APP_DIR, "prompt_engineering"),
     provider,
+    codexAuthDir: resolve(env.DNA_CODEX_AUTH_DIR ?? join(rootDir, "data", "codex-auth")),
     jevBackend:
       (env.JEV_BACKEND as Config["jevBackend"]) ?? (searchMode === "fixture" ? "fixture" : "auto"),
     searchMode,
@@ -75,8 +78,11 @@ export function loadConfig(argv = process.argv.slice(2), env = process.env): Con
     dailyCredits: int(env.DNA_FIRECRAWL_DAILY_CREDITS, 40),
     sweepQueries: int(env.DNA_SWEEP_QUERIES, 15),
     maxSavedSources: int(env.DNA_MAX_SAVED_SOURCES, 25),
-    model: env.DNA_MODEL ?? "anthropic/claude-haiku-5.5",
-    researchModel: env.DNA_RESEARCH_MODEL ?? env.DNA_MODEL ?? "anthropic/claude-haiku-5.5",
+    model: env.DNA_MODEL?.trim() || (provider === "codex" ? "" : "anthropic/claude-haiku-5.5"),
+    researchModel:
+      env.DNA_RESEARCH_MODEL?.trim() ||
+      env.DNA_MODEL?.trim() ||
+      (provider === "codex" ? "" : "anthropic/claude-haiku-5.5"),
     imageModel: env.DNA_IMAGE_MODEL ?? "gpt-image-2.5-flare",
     imageQuality: env.DNA_IMAGE_QUALITY ?? "low",
     openaiKey: env.OPENAI_API_KEY?.trim() || undefined,

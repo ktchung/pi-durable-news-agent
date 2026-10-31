@@ -4,20 +4,29 @@
 import { computed } from "vue";
 import { ChevronDown } from "@lucide/vue";
 import { agentState, api, attempt, feed, info, ui } from "../client/store";
+import ThinkingSelect from "./ThinkingSelect.vue";
 
-const LEVELS = ["off", "minimal", "low", "medium", "high"] as const;
-const DEEP_LEVELS = [...LEVELS, "xhigh"] as const;
+type ThinkingLevel = NonNullable<Parameters<typeof api.configure>[0]["thinkingLevel"]>;
 const DEEP_COUNTS = [1, 2, 3, 4, 5];
-const model = computed(() => info.value?.models.find((m) => m.id === agentState.value?.model));
+const models = computed(() => info.value?.models ?? []);
+const model = computed(() => models.value.find((m) => m.id === agentState.value?.model));
+const quickModel = computed(() =>
+  models.value.find((m) => m.id === agentState.value?.quick?.model),
+);
+const deepModel = computed(() =>
+  models.value.find((m) => m.id === agentState.value?.deepResearch?.model),
+);
 async function configure(body: Parameters<typeof api.configure>[0]) {
   const state = await attempt(() => api.configure(body));
   if (state) feed.apply({ type: "agent.state", state });
 }
-const setThinking = (level: string) =>
-  configure({ thinkingLevel: level as (typeof LEVELS)[number] });
 </script>
 
 <template>
+  <p v-if="info?.modelCatalog?.source === 'codex'" class="subscription-note">
+    Codex subscription quota applies; USD totals do not measure subscription usage. Research
+    selection also applies to news-sweep researchers.
+  </p>
   <div class="model-row" aria-label="Model and thinking">
     <button
       type="button"
@@ -30,16 +39,13 @@ const setThinking = (level: string) =>
       <span>{{ model?.name ?? agentState?.model ?? "Model" }}</span>
       <ChevronDown :size="14" />
     </button>
-    <label class="thinking-select" data-cap="agent.thinking"
-      ><span class="control-label">Thinking</span>
-      <select
-        :value="agentState?.thinkingLevel ?? 'low'"
-        aria-label="Thinking level"
-        @change="setThinking(($event.target as HTMLSelectElement).value)"
-      >
-        <option v-for="l in LEVELS" :key="l" :value="l">{{ l }}</option>
-      </select>
-    </label>
+    <ThinkingSelect
+      data-cap="agent.thinking"
+      :model="model"
+      :level="agentState?.thinkingLevel"
+      label="Thinking level"
+      @change="configure({ thinkingLevel: $event as ThinkingLevel })"
+    />
   </div>
   <div
     class="model-row quick"
@@ -49,26 +55,22 @@ const setThinking = (level: string) =>
   >
     <span class="control-label">Quick tasks</span>
     <select
-      :value="agentState?.quick?.model"
+      :value="quickModel?.id ?? ''"
+      :disabled="!models.length"
       aria-label="Quick tasks model"
       @change="configure({ quickModel: ($event.target as HTMLSelectElement).value })"
     >
-      <option v-for="m in info?.models ?? []" :key="m.id" :value="m.id">{{ m.name }}</option>
+      <option v-if="!quickModel" value="" disabled>
+        {{ agentState?.quick?.model ? `${agentState.quick.model} (unavailable)` : "Choose model" }}
+      </option>
+      <option v-for="m in models" :key="m.id" :value="m.id">{{ m.name }}</option>
     </select>
-    <label class="thinking-select"
-      ><span class="control-label">Thinking</span>
-      <select
-        :value="agentState?.quick?.thinkingLevel ?? 'off'"
-        aria-label="Quick tasks thinking level"
-        @change="
-          configure({
-            quickThinking: ($event.target as HTMLSelectElement).value as (typeof LEVELS)[number],
-          })
-        "
-      >
-        <option v-for="l in LEVELS" :key="l" :value="l">{{ l }}</option>
-      </select>
-    </label>
+    <ThinkingSelect
+      :model="quickModel"
+      :level="agentState?.quick?.thinkingLevel"
+      label="Quick tasks thinking level"
+      @change="configure({ quickThinking: $event as ThinkingLevel })"
+    />
   </div>
   <div
     class="model-row quick deep"
@@ -78,27 +80,26 @@ const setThinking = (level: string) =>
   >
     <span class="control-label">Deep research</span>
     <select
-      :value="agentState?.deepResearch?.model"
+      :value="deepModel?.id ?? ''"
+      :disabled="!models.length"
       aria-label="Deep research model"
       @change="configure({ deepResearchModel: ($event.target as HTMLSelectElement).value })"
     >
-      <option v-for="m in info?.models ?? []" :key="m.id" :value="m.id">{{ m.name }}</option>
+      <option v-if="!deepModel" value="" disabled>
+        {{
+          agentState?.deepResearch?.model
+            ? `${agentState.deepResearch.model} (unavailable)`
+            : "Choose model"
+        }}
+      </option>
+      <option v-for="m in models" :key="m.id" :value="m.id">{{ m.name }}</option>
     </select>
-    <label class="thinking-select"
-      ><span class="control-label">Thinking</span>
-      <select
-        :value="agentState?.deepResearch?.thinkingLevel ?? 'xhigh'"
-        aria-label="Deep research thinking level"
-        @change="
-          configure({
-            deepResearchThinking: ($event.target as HTMLSelectElement)
-              .value as (typeof DEEP_LEVELS)[number],
-          })
-        "
-      >
-        <option v-for="l in DEEP_LEVELS" :key="l" :value="l">{{ l }}</option>
-      </select>
-    </label>
+    <ThinkingSelect
+      :model="deepModel"
+      :level="agentState?.deepResearch?.thinkingLevel"
+      label="Deep research thinking level"
+      @change="configure({ deepResearchThinking: $event as ThinkingLevel })"
+    />
     <label class="thinking-select"
       ><span class="control-label">Count</span>
       <select

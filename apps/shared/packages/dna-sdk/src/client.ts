@@ -164,8 +164,8 @@ export class DnaClient {
   healthz() {
     return this.call<{ ok: true; version: string; device: string; uptime: number }>("healthz");
   }
-  info() {
-    return this.call<Info>("info");
+  info(refreshModels = false) {
+    return this.call<Info>("info", { query: refreshModels ? { refreshModels: "1" } : {} });
   }
   sweeps(query: { limit?: number; before?: number } = {}) {
     return this.call<Sweep[]>("sweeps.list", { query });

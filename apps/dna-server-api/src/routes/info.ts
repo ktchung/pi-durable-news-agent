@@ -2,7 +2,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Info } from "@dna/sdk";
-import { nextRun } from "../config.ts";
 import type { Handlers, RouteDeps } from "./types.ts";
 import { packageVersion } from "../version.ts";
 
@@ -26,7 +25,9 @@ export function infoRoutes({ app }: RouteDeps): Handlers<"healthz" | "info"> {
         device: app.config.device,
         uptime: Math.round((Date.now() - app.startedAt) / 1000),
       }),
-    info: async (_req, res) => {
+    info: async (req, res) => {
+      await app.catalog.refresh?.(req.query.refreshModels === "1").catch(() => undefined);
+      await app.reconcileModel();
       if (app.search.mode === "firecrawl" && Date.now() - credits.at > 10 * 60_000)
         credits = { at: Date.now(), left: await app.search.creditsLeft() };
       const budget = app.search.budget();
@@ -40,6 +41,10 @@ export function infoRoutes({ app }: RouteDeps): Handlers<"healthz" | "info"> {
         piDurable,
         searchMode: app.search.mode,
         models: app.catalog.list(),
+        modelCatalog: app.catalog.catalogState?.() ?? {
+          source: app.catalog.provider,
+          stale: false,
+        },
         defaultModel: model.id,
         cronSchedule: app.config.cronSchedule,
         nextSweepAt: app.schedule.next()?.toISOString(),
