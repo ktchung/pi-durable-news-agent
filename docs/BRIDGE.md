@@ -67,10 +67,10 @@ Verify from the actual caller network: unauthenticated and backend-token request
 
 ## Tests
 
-After applying both overlays to one checkout:
+After applying both overlays to one checkout (Compose tests use `docker compose`, or `DNA_TEST_COMPOSE=/path/to/docker-compose`):
 
 ```sh
-DNA_TEST_COMPOSE=/path/to/docker-compose node --test docker/tests/*.test.mjs
+node --test docker/tests/*.test.mjs
 ```
 
 When reviewing the two overlays without merging them, set `DNA_TEST_BASE=/path/to/docker-base` for the bridge Compose tests. Wrapper and HTTP tests need a merged temporary copy for shared base helpers. Use Node 24 and a disposable writable `TMPDIR`. All credentials are synthetic, HTTP upstreams are loopback fixtures, Compose interpolation ignores actual env files, and no Docker daemon or live provider is contacted. These checks do not establish a built/booted image, Docker network isolation or live integration readiness.

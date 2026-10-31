@@ -64,10 +64,10 @@ Back up private state offline before an operator-approved upgrade, preserve `.en
 
 ## Offline verification
 
-With Node 24 and an actual standalone Compose binary on PATH or supplied explicitly:
+With Node 24. Compose tests use `docker compose` (no daemon needed), or a standalone binary set in `DNA_TEST_COMPOSE`, and are skipped when neither exists:
 
 ```sh
-DNA_TEST_COMPOSE=/path/to/docker-compose node --test docker/tests/*.test.mjs
+node --test docker/tests/*.test.mjs
 # Separate installed + built fixture source; never point this at production data.
 DNA_TEST_SOURCE=/path/to/fixture-checkout PYTHONDONTWRITEBYTECODE=1 \
   python3 docker/tests/smoke.py --node-dir /path/to/node24/bin --ticker

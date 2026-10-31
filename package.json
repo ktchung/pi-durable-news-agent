@@ -13,7 +13,8 @@
   },
   "scripts": {
     "check": "npm run check --workspaces --if-present",
-    "test": "npm test --workspaces --if-present",
+    "test": "npm test --workspaces --if-present && npm run test:deploy",
+    "test:deploy": "node --test docker/tests/*.test.mjs && python3 -m unittest discover -s integrations/discord/tests",
     "lint": "oxlint apps/dna-* apps/shared",
     "fmt": "oxfmt -c shared-app-configuration/.oxfmtrc.json apps/dna-* apps/shared",
     "fmt:check": "oxfmt --check -c shared-app-configuration/.oxfmtrc.json apps/dna-* apps/shared"

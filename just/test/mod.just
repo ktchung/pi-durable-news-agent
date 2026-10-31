@@ -27,6 +27,10 @@ faux:
 prompts:
     NODE_NO_WARNINGS=1 npx tsx --test shared/packages/durable-agent/tests/prompts.test.ts
 
+# Docker packaging, Compose (skipped without docker compose), bridge and Discord publisher
+deploy:
+    cd .. && npm run test:deploy
+
 # Browser suite against a faux API
 ui:
     npm run build -w dna-client-browser
