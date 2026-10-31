@@ -46,8 +46,8 @@ export function infoRoutes({ app }: RouteDeps): Handlers<"healthz" | "info"> {
           stale: false,
         },
         defaultModel: model.id,
-        cronSchedule: app.config.cronSchedule,
-        nextSweepAt: app.schedule.next()?.toISOString(),
+        cronSchedule: app.schedule.state().cronExpression ?? "off",
+        nextSweepAt: app.schedule.state().nextSweepAt,
         firecrawl: {
           creditsToday: budget.dailyUsed,
           dailyCap: budget.dailyCap,

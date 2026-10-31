@@ -70,10 +70,13 @@ test("a body without requestId is 400", async () => {
 
 test("the schedule: presets for a 1 minute tick, PATCH a preset or off, and an off schedule skips scheduled ticks", async () => {
   const start = await s.client.schedule();
-  assert.equal(start.everyMinutes, 5);
+  assert.equal(start.everyMinutes, 480);
+  assert.equal(start.cronExpression, "0 */8 * * *");
+  assert.equal(start.schedulerStatus, "waiting");
   assert.equal(start.tickMinutes, 1);
   assert.deepEqual(start.presets, [1, 5, 10, 15, 30, 60]);
-  assert.ok(start.nextSweepAt);
+  assert.ok(start.nextScheduledAt);
+  assert.equal(start.nextSweepAt, undefined);
   await assert.rejects(s.client.setSchedule(7), /everyMinutes must be one of 1, 5, 10, 15, 30, 60/);
   assert.equal((await s.client.setSchedule(30)).everyMinutes, 30);
   assert.equal((await s.client.agent()).schedule.everyMinutes, 30);

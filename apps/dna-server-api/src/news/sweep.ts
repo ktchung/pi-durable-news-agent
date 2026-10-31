@@ -83,12 +83,16 @@ export async function startNewsSweep(
   input: StartSweepInput,
 ): Promise<StartSweepResult> {
   const { store, log, config } = deps;
+  const now = Date.now();
+  if (input.trigger === "cron" && input.scheduled === true) {
+    deps.schedule.recordTick(now);
+    deps.bus.publish({ type: "schedule", schedule: deps.schedule.state(now) });
+  }
   const known = store.sweeps.byRequest(input.requestId);
   if (known) {
     log.info("sweep.replay", { sweepId: known.id, requestId: input.requestId });
     return { status: "replay", sweep: known, submissionId: known.submissionId };
   }
-  const now = Date.now();
   if (input.scheduled) {
     const due = deps.schedule.due(now);
     if (!due.due) {
@@ -119,6 +123,7 @@ export async function startNewsSweep(
     status: "queued",
     searchMode: deps.search.mode,
   });
+  if (input.scheduled) deps.schedule.recordStarted(now);
   const maxCards = input.cards ?? deps.schedule.cards();
   store.sweeps.update(sweep.id, { maxCards });
   const budget = deps.search.budget(sweep.id);

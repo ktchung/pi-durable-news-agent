@@ -538,8 +538,9 @@ export interface WorkflowResult {
   submissionId?: number;
 }
 
-/** How often scheduled sweeps run: every N minutes, or null when off. */
+/** Persisted cron plus process-local ticker liveness. Use cronExpression, not everyMinutes, for off. */
 export interface ScheduleState {
+  /** Legacy interval projection; null also represents custom cron expressions. */
   everyMinutes: number | null;
   /** The most cards one sweep presents; jev ranks the candidates and keeps the top ones. */
   cardsPerSweep: number;
@@ -548,6 +549,12 @@ export interface ScheduleState {
   /** How often the crontab ticks, in minutes. */
   tickMinutes: number;
   nextSweepAt?: string;
+  cronExpression?: string | null;
+  timezone?: string;
+  schedulerStatus?: "waiting" | "running" | "stale";
+  lastTickAt?: string;
+  /** Configured next slot, even when the ticker is waiting/stale. */
+  nextScheduledAt?: string;
 }
 
 export interface CardDetail {

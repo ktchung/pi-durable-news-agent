@@ -308,9 +308,9 @@ export function setSchedule(deps: Deps) {
       });
       return toolText(
         [
-          state.everyMinutes === null
+          state.cronExpression === null
             ? "Scheduled sweeps are off. The reader can still ask for news in chat."
-            : `Sweeps run every ${state.everyMinutes} minutes. Next one at ${state.nextSweepAt}.`,
+            : `${state.everyMinutes === null ? `Sweeps follow cron ${state.cronExpression} (${state.timezone})` : `Sweeps run every ${state.everyMinutes} minutes`}. Configured next slot: ${state.nextScheduledAt}. Ticker: ${state.schedulerStatus}${state.nextSweepAt ? `; next sweep at ${state.nextSweepAt}` : "; no live ticker confirmed"}.`,
           `Each sweep presents at most ${state.cardsPerSweep} cards.`,
         ].join(" "),
       );
