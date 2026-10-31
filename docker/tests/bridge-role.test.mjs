@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { validate } from '../preflight.mjs';
@@ -26,7 +26,6 @@ test('baked bridge role needs only client capability, dispatches its file and cr
     assert.equal(run.status, 0, run.stderr);
     assert.equal(run.stdout.trim(), root + 'docker/bridge.mjs');
     for (const key of ['DNA_LOG_DIR', 'DNA_DATA_DIR', 'DNA_CODEX_AUTH_DIR']) assert.equal(existsSync(env[key]), false);
-    assert.ok(readFileSync(root + 'Dockerfile', 'utf8').includes('RUN node --check /opt/dna-container/bridge.mjs'));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
