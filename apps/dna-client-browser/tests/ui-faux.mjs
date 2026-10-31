@@ -830,6 +830,66 @@ try {
   await page.getByRole("button", { name: "Toggle the agent column" }).click();
   await page.locator('[data-col="agent"]').waitFor();
 
+  // ---------------------------------------------------------------- phone: one pane at a time
+  const phoneContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  const phone = await phoneContext.newPage();
+  phone.on("pageerror", (e) => errors.push(`phone: ${e.message}`));
+  const overflow = () =>
+    phone.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  const visible = (sel) =>
+    phone
+      .locator(sel)
+      .evaluate((e) => getComputedStyle(e).visibility === "visible" && !e.closest("[inert]"));
+  await phone.goto(base);
+  await phone.locator(".feed-list .card").first().waitFor();
+  await phone.waitForTimeout(300);
+  const cardWidth = await phone
+    .locator(".feed-list .card")
+    .first()
+    .evaluate((e) => e.getBoundingClientRect().width);
+  check(
+    (await overflow()) <= 0 && cardWidth >= 340,
+    `a 390 px phone shows News full width with no sideways scroll (card ${Math.round(cardWidth)} px)`,
+  );
+  check(
+    (await visible('[data-col="feed"]')) &&
+      !(await visible('[data-col="agent"]')) &&
+      (await phone.locator(".resize-handle").count()) === 0,
+    "a phone shows one pane, News first, with no resize handle",
+  );
+  await phone.locator('.feed-list [aria-label="Card details"]').first().click();
+  await phone.locator(".card-detail").waitFor();
+  check(true, "a card's controls can be tapped on a phone");
+  await phone.locator('.card-detail [aria-label="Close"]').click();
+  await phone.locator('.mobile-tab[data-pane="agent"]').click();
+  check(
+    (await visible('[data-col="agent"]')) &&
+      !(await visible('[data-col="feed"]')) &&
+      (await phone.locator(".composer textarea").isVisible()) &&
+      (await overflow()) <= 0,
+    "the bottom bar switches to the agent, composer in view",
+  );
+  await phone.locator('.mobile-tab[data-pane="feed"]').click();
+  await phone.locator('.feed-list [aria-label="Reference in chat"]').first().click();
+  await phone.waitForFunction(
+    () => document.activeElement === document.querySelector(".composer textarea"),
+  );
+  check(await visible('[data-col="agent"]'), "Reference in chat switches a phone to the agent");
+  await phone.getByRole("button", { name: "Executions" }).click();
+  await phone.locator(".exec-tree .row-main").first().click();
+  await phone.locator(".exec-back").waitFor();
+  check(
+    !(await phone.locator(".exec-list").isVisible()) && (await overflow()) <= 0,
+    "executions on a phone open one at a time",
+  );
+  await phone.locator(".exec-back").click();
+  await phone.locator(".exec-list").waitFor();
+  await phoneContext.close();
+
   // ---------------------------------------------------------------- capabilities
   const { CAPABILITY_IDS } = await import(
     join(root, "apps/shared/packages/dna-sdk/src/capabilities.ts")

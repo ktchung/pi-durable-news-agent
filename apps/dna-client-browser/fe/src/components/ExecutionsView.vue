@@ -4,6 +4,7 @@
 // its run together, usage per day, and the logs.
 import { computed, onMounted, ref, watch } from "vue";
 import {
+  ArrowLeft,
   ChevronDown,
   ChevronRight,
   Clock,
@@ -136,7 +137,8 @@ const close = () => go("/");
         <X :size="18" />
       </button>
     </header>
-    <div class="exec-body">
+    <!-- On a narrow screen, picked shows the detail alone; Back returns to the list. -->
+    <div class="exec-body" :class="{ picked: !!sel.kind }">
       <aside class="exec-list" data-cap="runs.read" aria-label="Executions, newest first">
         <ul class="exec-tree">
           <li v-for="e in execs" :key="e.key" :data-exec="e.key">
@@ -170,6 +172,9 @@ const close = () => go("/");
         </ul>
       </aside>
       <section class="exec-detail">
+        <button class="exec-back bar-button" @click="go('/executions')">
+          <ArrowLeft :size="15" /><span>All executions</span>
+        </button>
         <template v-if="shown">
           <SweepDetail v-if="shown.sweepId" :id="shown.sweepId" />
           <RunTree v-if="shown.runId" :id="shown.runId" />

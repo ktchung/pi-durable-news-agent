@@ -95,7 +95,7 @@ const spend = computed(() => agentState.value?.spend);
         <SlidersHorizontal :size="16" /><span>Settings</span>
       </button>
       <button
-        class="bar-button"
+        class="bar-button column-toggle"
         :class="{ on: layout.feed }"
         :aria-pressed="layout.feed"
         aria-label="Toggle the news column"
@@ -105,7 +105,7 @@ const spend = computed(() => agentState.value?.spend);
         <PanelLeft :size="16" /><span>News</span>
       </button>
       <button
-        class="bar-button"
+        class="bar-button column-toggle"
         :class="{ on: layout.agent }"
         :aria-pressed="layout.agent"
         aria-label="Toggle the agent column"
@@ -119,26 +119,12 @@ const spend = computed(() => agentState.value?.spend);
 </template>
 
 <style scoped>
-/* Let the compact status row wrap instead of pushing controls off small screens. */
+/* Let the compact status row wrap instead of pushing controls off small screens; app.css has the narrow layout. */
 .topbar {
   flex-wrap: wrap;
 }
 .agent-status {
   flex-wrap: wrap;
   min-width: 0;
-}
-@media (max-width: 600px) {
-  .topbar {
-    gap: 12px;
-    padding: 12px;
-  }
-  .agent-status {
-    width: 100%;
-    padding: 6px 8px;
-  }
-  .topbar-right {
-    margin-left: 0;
-    flex-wrap: wrap;
-  }
 }
 </style>
