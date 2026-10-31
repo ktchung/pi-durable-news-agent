@@ -264,6 +264,9 @@ export interface ModelInfo {
   provider: string;
   contextWindow: number;
   reasoning: boolean;
+  /** Exact reasoning efforts supported by this model in the active provider. */
+  thinkingLevels?: string[];
+  defaultThinkingLevel?: string;
   cost: { input: number; output: number };
 }
 
@@ -284,6 +287,7 @@ export interface Info {
   piDurable: string;
   searchMode: "firecrawl" | "web" | "fixture";
   models: ModelInfo[];
+  modelCatalog?: { source: string; refreshedAt?: string; stale?: boolean; error?: string };
   defaultModel: string;
   cronSchedule: string;
   nextSweepAt?: string;
@@ -587,13 +591,13 @@ export interface FeedbackResult {
 
 export interface AgentConfigBody {
   model?: string;
-  thinkingLevel?: "off" | "minimal" | "low" | "medium" | "high";
+  thinkingLevel?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
   /** The quick model for one-shot jobs (publish dates). */
   quickModel?: string;
-  quickThinking?: "off" | "minimal" | "low" | "medium" | "high";
+  quickThinking?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
   /** The deep-research subagents (deep_dive_research). */
   deepResearchModel?: string;
-  deepResearchThinking?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
+  deepResearchThinking?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
   /** How many deep-research subagents one deep dive starts, 1 to 5. */
   deepResearchCount?: number;
 }

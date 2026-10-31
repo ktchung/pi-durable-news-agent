@@ -53,7 +53,7 @@ export function deepDiveResearch(
             .filter(Boolean)
             .join("\n")
         : "No card or item: the question is all you have.";
-      const setting = deepResearchSetting(deps.store);
+      const setting = deepResearchSetting(deps.store, deps.catalog);
       const count = args.count ?? setting.count;
       const agent = child();
       const started = await onceInCommit<{ researchId: number; children: number[] }>(

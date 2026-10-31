@@ -1,6 +1,10 @@
 // The model catalog: Haiku 5.5 (default) plus 29 more models, all through OpenRouter.
 // DNA_PROVIDER=faux swaps in a free deterministic model with the same 1M window.
-import { createModels, type MutableModels } from "@earendil-works/pi-ai/models";
+import {
+  createModels,
+  getSupportedThinkingLevels,
+  type MutableModels,
+} from "@earendil-works/pi-ai/models";
 import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter";
 import type { ModelRef } from "@earendil-works/pi-durable";
 
@@ -16,6 +20,8 @@ export interface ModelInfo extends CatalogEntry {
   contextWindow: number;
   reasoning: boolean;
   cost: { input: number; output: number };
+  thinkingLevels?: string[];
+  defaultThinkingLevel?: string;
 }
 
 export const DEFAULT_MODEL = "anthropic/claude-haiku-5.5";
@@ -77,12 +83,15 @@ export const CATALOG: readonly CatalogEntry[] = [
 
 export interface ModelCatalog {
   readonly models: MutableModels;
-  readonly provider: "openrouter" | "faux";
+  readonly provider: "openrouter" | "faux" | "codex";
   readonly defaultModel: ModelRef;
   list(): ModelInfo[];
   /** A catalog id to a pi-durable model reference; throws for ids outside the catalog. */
   ref(id: string): ModelRef;
   info(id: string): ModelInfo | undefined;
+  close?(): void;
+  refresh?(force?: boolean): Promise<void>;
+  catalogState?(): { source: string; refreshedAt?: string; stale?: boolean; error?: string };
 }
 
 export function createModelCatalog(options: {
@@ -99,6 +108,8 @@ export function createModelCatalog(options: {
       contextWindow: FAUX_WINDOW,
       reasoning: false,
       cost: { input: 0, output: 0 },
+      thinkingLevels: ["off", "minimal", "low", "medium", "high", "xhigh"],
+      defaultThinkingLevel: "low",
     };
     const all: ModelInfo[] = [
       { id: FAUX_MODEL, name: "Faux Haiku", tier: "T", icon: "lab.png", ...free },
@@ -133,6 +144,10 @@ export function createModelCatalog(options: {
         contextWindow: m.contextWindow,
         reasoning: m.reasoning,
         cost: { input: m.cost.input, output: m.cost.output },
+        thinkingLevels: getSupportedThinkingLevels(m),
+        defaultThinkingLevel: getSupportedThinkingLevels(m).includes("low")
+          ? "low"
+          : getSupportedThinkingLevels(m)[0],
       };
     });
   const defaultId = options.defaultModel ?? DEFAULT_MODEL;

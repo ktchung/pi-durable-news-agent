@@ -19,8 +19,10 @@ import {
   type DurableHarness,
 } from "@dna/durable-agent";
 import { createLogger, type Logger } from "@dna/sdk/node";
+import { createCodexCatalog } from "@dna/durable-agent/codex";
 import { createAgents, type Agents } from "./agents/index.ts";
 import { fauxRules } from "./agents/faux-script.ts";
+import { selectModel } from "./news/model-selection.ts";
 import type { Config } from "./config.ts";
 import { openStore } from "./db/store.ts";
 import type { Deps } from "./deps.ts";
@@ -48,6 +50,8 @@ export interface App extends Deps {
   compaction: CompactionSetting;
   /** The main agent's model id and context window, read live. */
   mainModel(): Promise<{ id: string; window: number }>;
+  /** Reconcile persisted root configuration before resume and after catalog refresh. */
+  reconcileModel(): Promise<void>;
   setCompaction(next: Partial<CompactionSetting>): CompactionSetting;
   /** The points, the switch, and the main model's window the points must fit. */
   compactionState(): CompactionState;
@@ -69,11 +73,14 @@ export async function openApp(config: Config, options: { log?: Logger } = {}): P
   const log = options.log ?? createLogger("api").child({ device: config.device });
   const store = openStore(config.dataDir, config.configDir);
   const http = config.searchMode === "fixture" ? fixtureHttp() : liveHttp(log);
-  const catalog = createModelCatalog({
-    provider: config.provider,
-    installFaux: (models) => installScriptedFaux(models, fauxRules()),
-    defaultModel: config.provider === "faux" ? undefined : config.model,
-  });
+  const catalog =
+    config.provider === "codex"
+      ? await createCodexCatalog({ authDir: config.codexAuthDir, defaultModel: config.model })
+      : createModelCatalog({
+          provider: config.provider,
+          installFaux: (models) => installScriptedFaux(models, fauxRules()),
+          defaultModel: config.provider === "faux" ? undefined : config.model,
+        });
   const judge = new Judge({
     decide: decideFor(config),
     store,
@@ -135,13 +142,50 @@ export async function openApp(config: Config, options: { log?: Logger } = {}): P
   const stopProjector = startProjector(harness.harness, store.telemetry, log);
   const ctx = harness.ctx;
   const main = await harness.harness.root(ctx, {
-    agent: { model: catalog.defaultModel, thinkingLevel: "low" },
+    agent: {
+      model: catalog.defaultModel,
+      thinkingLevel: catalog.info(catalog.defaultModel.modelId)?.defaultThinkingLevel as
+        | import("@earendil-works/pi-ai").ModelThinkingLevel
+        | undefined,
+    },
   });
   const mainModel = async () => {
     const agent = await main.agent(ctx);
     const id = agent.model?.modelId ?? catalog.defaultModel.modelId;
     return { id, window: catalog.info(id)?.contextWindow ?? 1_000_000 };
   };
+  const reconcileModel = async () => {
+    if (catalog.provider !== "codex" || !catalog.list().length) return;
+    const current = await main.agent(ctx);
+    const currentId = current.model?.modelId;
+    const selected = selectModel(
+      catalog,
+      {
+        model: currentId && catalog.info(currentId) ? currentId : catalog.defaultModel.modelId,
+        thinkingLevel: current.thinkingLevel,
+      },
+      {},
+    );
+    const ref = catalog.ref(selected.model);
+    if (
+      current.model?.provider !== ref.provider ||
+      currentId !== ref.modelId ||
+      current.thinkingLevel !== selected.thinkingLevel
+    ) {
+      await main.configure({ model: ref, thinkingLevel: selected.thinkingLevel }, ctx);
+      store.settings.set("model", selected.model);
+      log.warn("agent.model_reconciled", {
+        model: selected.model,
+        thinkingLevel: selected.thinkingLevel,
+      });
+    }
+    window = (await mainModel()).window;
+    if (!fits(window, compaction.points)) {
+      compaction.points = fit(window, compaction.points);
+      store.settings.set("compaction", compaction);
+    }
+  };
+  await reconcileModel();
   window = (await mainModel()).window;
   harness.harness.resume();
 
@@ -175,6 +219,7 @@ export async function openApp(config: Config, options: { log?: Logger } = {}): P
     main,
     compaction,
     mainModel,
+    reconcileModel,
     startedAt: Date.now(),
     compactionState: () => ({ ...compaction.points, enabled: compaction.enabled, window }),
     async refreshModel() {
@@ -205,6 +250,7 @@ export async function openApp(config: Config, options: { log?: Logger } = {}): P
       stopProjector();
       await harness.close();
       store.close();
+      catalog.close?.();
       log.info("app.closed", {});
     },
   };

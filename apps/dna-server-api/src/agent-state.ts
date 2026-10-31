@@ -1,6 +1,7 @@
 // The main agent's state for GET /v1/agent and the agent.state frame.
 import { sumUsage, type AgentState } from "@dna/sdk";
 import { deepResearchSetting } from "./news/deep-research.ts";
+import { selectModel } from "./news/model-selection.ts";
 import type { App } from "./runtime.ts";
 
 export async function agentState(app: App): Promise<AgentState> {
@@ -20,9 +21,10 @@ export async function agentState(app: App): Promise<AgentState> {
   return {
     conversationId: app.main.id as number,
     model: model.id,
-    thinkingLevel: agent.thinkingLevel ?? "low",
+    thinkingLevel:
+      agent.thinkingLevel ?? selectModel(app.catalog, { model: model.id }, {}).thinkingLevel,
     quick: app.quick.setting(),
-    deepResearch: deepResearchSetting(app.store),
+    deepResearch: deepResearchSetting(app.store, app.catalog),
     busy,
     contextTokens: app.store.telemetry.contextTokens(app.main.id as number),
     contextWindow: model.window,

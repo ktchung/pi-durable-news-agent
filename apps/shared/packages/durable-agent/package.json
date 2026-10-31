@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./compaction": "./src/compaction.ts"
+    "./compaction": "./src/compaction.ts",
+    "./codex": "./src/codex.ts"
   },
   "scripts": {
     "check": "tsc -p .",

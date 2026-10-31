@@ -134,14 +134,20 @@ export function createAgents(deps: Deps): Agents {
     sections: [section("news-researcher", () => researcherPrompt, { tag: false })],
     hooks: [allowOnly("news-researcher", RESEARCHER_TOOLS)],
   });
-  const researcher = (): AgentChange => ({
-    model:
-      deps.catalog.provider === "faux"
-        ? deps.catalog.defaultModel
-        : deps.catalog.ref(deps.config.researchModel),
-    thinkingLevel: "low",
-    extensions: [newsResearcher, observe],
-  });
+  const researcher = (): AgentChange => {
+    const setting =
+      deps.catalog.provider === "codex"
+        ? deepResearchSetting(deps.store, deps.catalog)
+        : { model: deps.config.researchModel, thinkingLevel: "low" as const };
+    return {
+      model:
+        deps.catalog.provider === "faux"
+          ? deps.catalog.defaultModel
+          : deps.catalog.ref(setting.model),
+      thinkingLevel: setting.thinkingLevel,
+      extensions: [newsResearcher, observe],
+    };
+  };
   const deepResearchTools = [deepSearch(deps), openPage(deps), shared.readItem];
   const deepResearch = defineExtension({
     name: "deep-research",
@@ -150,7 +156,7 @@ export function createAgents(deps: Deps): Agents {
     hooks: [allowOnly("deep-research", DEEP_RESEARCH_TOOLS)],
   });
   const deepResearcher = (): AgentChange => {
-    const setting = deepResearchSetting(deps.store);
+    const setting = deepResearchSetting(deps.store, deps.catalog);
     return {
       model:
         deps.catalog.provider === "faux"
