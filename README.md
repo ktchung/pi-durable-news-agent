@@ -1,5 +1,14 @@
 # Pi Durable News Agent
 
+## Fork deployment features
+
+This fork retains the upstream workspace layout and history, adding app-owned
+Codex subscription authentication, provider-aware model/reasoning controls,
+provider-neutral Jev defaults, and persisted timezone-aware cron scheduling.
+For the source-built Docker/Gluetun deployment, use [the deployment guide](docs/DOCKER.md).
+Automation is opt-in; no provider credentials or runtime data belong in Git.
+The original upstream introduction and installation options remain below.
+
 > **This agent does not wait for you to work. It works for you, then waits, then keeps working.**
 > A proactive news agent built on pi-durable that sorts every story into Hype, Facts and Signal with jev, on your Mac, an always-on Mac mini or a cloud VM.
 
