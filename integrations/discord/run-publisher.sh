@@ -1,5 +1,5 @@
 #!/bin/sh
-# Script-only scheduler adapter; never initializes or resets a baseline.
+# Script-only scheduler adapter: post new sweeps to Discord. Nothing goes to stdout.
 set -eu
 if [ "$#" -gt 1 ]; then
     printf '%s\n' 'Usage: run-publisher.sh [client.json]' >&2
@@ -11,4 +11,4 @@ if [ -z "$CONFIG" ]; then
     exit 64
 fi
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-exec "${PYTHON:-python3}" "$SCRIPT_DIR/sender.py" --config "$CONFIG" tick
+exec "${PYTHON:-python3}" "$SCRIPT_DIR/publisher.py" --config "$CONFIG" run
