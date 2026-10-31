@@ -2,7 +2,7 @@
   "name": "same-story",
   "version": 4,
   "description": "Story membership, repeated coverage, new evidence and distinct developments from attributed article evidence",
-  "model": "~typesafe/jev-latest",
+
   "state": {
     "candidate": "{{candidate}}",
     "existing": "{{existing}}"

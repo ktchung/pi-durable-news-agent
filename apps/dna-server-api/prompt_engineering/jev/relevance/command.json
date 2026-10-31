@@ -2,7 +2,7 @@
   "name": "relevance",
   "version": 1,
   "description": "How relevant one item is to the reader's topic keywords, and which topic matched",
-  "model": "~typesafe/jev-latest",
+
   "state": {
     "title": "{{title}}",
     "source": "{{source}}",
