@@ -1,0 +1,8 @@
+{
+  "base_url": "http://127.0.0.1:8765",
+  "token_file": "secrets/news-read.token",
+  "state_dir": "state/publisher",
+  "target": "discord:100000000000000001",
+  "timezone": "Asia/Taipei",
+  "news_url": "https://news.example.test/"
+}
