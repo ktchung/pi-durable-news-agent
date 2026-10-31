@@ -23,26 +23,51 @@ test("shipped commands inherit distinct direct and routed provider model default
         ["openrouter", "~typesafe/jev-latest", "https://openrouter.ai/api/alpha/decisions"],
       ] as const) {
         const client = new JevClient({ provider, apiKey: "fixture" });
-        await assert.rejects(client.systemOne("Fixture", {
-          check: { type: "noul", instructions: "Is this a fixture?" },
-        }, { model: command.model }), /HTTP 400/);
+        await assert.rejects(
+          client.systemOne(
+            "Fixture",
+            {
+              check: { type: "noul", instructions: "Is this a fixture?" },
+            },
+            { model: command.model },
+          ),
+          /HTTP 400/,
+        );
         assert.equal(captured.at(-1)?.url, endpoint);
         assert.equal(captured.at(-1)?.body.model, model);
       }
     }
     for (const name of ["relevance", "worth-attention"]) {
       const client = new JevClient({ provider: "typesafe", apiKey: "fixture" });
-      await assert.rejects(runCommand(loadCommand(name, commandDir), {
-        title: "Fixture", source: "Fixture", excerpt: "Synthetic fixture only.",
-        published_at: "2026-01-01", topic_keywords: [{ term: "fixture", weight: 1 }],
-        topic_choices: { fixture: "Fixture", none: "No match" }, taste_examples: [],
-      }, (state, questions, options) => client.systemOne(state, questions, options)), /HTTP 400/);
+      await assert.rejects(
+        runCommand(
+          loadCommand(name, commandDir),
+          {
+            title: "Fixture",
+            source: "Fixture",
+            excerpt: "Synthetic fixture only.",
+            published_at: "2026-01-01",
+            topic_keywords: [{ term: "fixture", weight: 1 }],
+            topic_choices: { fixture: "Fixture", none: "No match" },
+            taste_examples: [],
+          },
+          (state, questions, options) => client.systemOne(state, questions, options),
+        ),
+        /HTTP 400/,
+      );
       assert.equal(captured.at(-1)?.body.model, "jev-latest");
     }
     const client = new JevClient({ provider: "typesafe", apiKey: "fixture" });
-    await assert.rejects(client.systemOne("Fixture", {
-      check: { type: "noul", instructions: "Is this a fixture?" },
-    }, { model: "jev-1.14.0" }), /HTTP 400/);
+    await assert.rejects(
+      client.systemOne(
+        "Fixture",
+        {
+          check: { type: "noul", instructions: "Is this a fixture?" },
+        },
+        { model: "jev-1.14.0" },
+      ),
+      /HTTP 400/,
+    );
     assert.equal(captured.at(-1)?.body.model, "jev-1.14.0");
     assert.equal(captured.length, 15);
   } finally {
