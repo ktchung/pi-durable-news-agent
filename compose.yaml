@@ -1,0 +1,212 @@
+name: pi-durable-news-agent
+
+x-app: &app
+  image: ${DNA_IMAGE:-pi-durable-news-agent:local}
+  pull_policy: never
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      NODE_IMAGE: ${NODE_IMAGE:-node:24-bookworm-slim}
+  user: "${PUID:-1000}:${PGID:-1000}"
+  init: true
+  restart: unless-stopped
+  network_mode: service:gluetun
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs:
+    - /tmp:rw,nosuid,nodev,size=128m,mode=1777
+  stop_grace_period: 60s
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  gluetun:
+    image: ${GLUETUN_IMAGE:-qmcgaw/gluetun:latest}
+    restart: unless-stopped
+    cap_add: [NET_ADMIN]
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      TZ: ${TZ:-Asia/Taipei}
+      VPN_SERVICE_PROVIDER: ${VPN_SERVICE_PROVIDER:-custom}
+      VPN_TYPE: wireguard
+      WIREGUARD_PRIVATE_KEY: ${WIREGUARD_PRIVATE_KEY:-}
+      WIREGUARD_ADDRESSES: ${WIREGUARD_ADDRESSES:-}
+      WIREGUARD_PUBLIC_KEY: ${WIREGUARD_PUBLIC_KEY:-}
+      WIREGUARD_PRESHARED_KEY: ${WIREGUARD_PRESHARED_KEY:-}
+      WIREGUARD_ENDPOINT_IP: ${WIREGUARD_ENDPOINT_IP:-}
+      # 0 means no manual port; Surfshark rejects a custom endpoint port.
+      WIREGUARD_ENDPOINT_PORT: ${WIREGUARD_ENDPOINT_PORT:-0}
+      WIREGUARD_MTU: ${WIREGUARD_MTU:-1320}
+      SERVER_COUNTRIES: ${SERVER_COUNTRIES:-}
+      FIREWALL_INPUT_PORTS: "4851"
+      FIREWALL_OUTBOUND_SUBNETS: ${FIREWALL_OUTBOUND_SUBNETS:-}
+    volumes:
+      - type: bind
+        source: ./gluetun
+        target: /gluetun
+        bind:
+          create_host_path: false
+    ports:
+      - "127.0.0.1:${DNA_UI_HOST_PORT:-4851}:4851"
+    healthcheck:
+      test: [CMD, /gluetun-entrypoint, healthcheck]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  api:
+    <<: *app
+    command: [api]
+    depends_on:
+      gluetun:
+        condition: service_healthy
+        restart: true
+    environment:
+      TZ: ${TZ:-Asia/Taipei}
+      HOME: /tmp
+      DNA_HOST: 0.0.0.0
+      DNA_PORT: "4850"
+      DNA_ENV_FILE: none
+      DNA_DATA_DIR: /data
+      DNA_LOG_DIR: /logs/api
+      DNA_LOG_PRETTY: "1"
+      DNA_DEVICE_NAME: news
+      DNA_CRON_SCHEDULE: "* * * * *"
+      # Minute tick is transport; these seed the persisted sweep schedule.
+      # Later UI edits win over these initial values.
+      DNA_SWEEP_CRON: ${DNA_SWEEP_CRON:-0 */8 * * *}
+      DNA_SWEEP_TIMEZONE: ${DNA_SWEEP_TIMEZONE:-${TZ:-Asia/Taipei}}
+      DNA_CLIENT_TOKEN: ${DNA_CLIENT_TOKEN:-}
+      DNA_CRON_TOKEN: ${DNA_CRON_TOKEN:-}
+      DNA_PROVIDER: ${DNA_PROVIDER:-codex}
+      DNA_CODEX_AUTH_DIR: /auth
+      JEV_BACKEND: ${JEV_BACKEND:-typesafe}
+      DNA_SEARCH_MODE: ${DNA_SEARCH_MODE:-web}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+      DNA_MODEL: ${DNA_MODEL:-}
+      DNA_RESEARCH_MODEL: ${DNA_RESEARCH_MODEL:-}
+      DNA_SWEEP_QUERIES: ${DNA_SWEEP_QUERIES:-3}
+      DNA_MAX_SAVED_SOURCES: ${DNA_MAX_SAVED_SOURCES:-10}
+      # Image generation is disabled unless a key is deliberately supplied.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      DNA_FIRECRAWL_SWEEP_CREDITS: ${DNA_FIRECRAWL_SWEEP_CREDITS:-0}
+      DNA_FIRECRAWL_DAILY_CREDITS: ${DNA_FIRECRAWL_DAILY_CREDITS:-0}
+    volumes:
+      - type: bind
+        source: ./auth
+        target: /auth
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./data
+        target: /data
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./logs/api
+        target: /logs/api
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: [CMD, node, /opt/dna-container/healthcheck.mjs, api]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Run explicitly: docker compose run --rm --no-deps auth auth-login
+  # No API/cron/provider/VPN keys, no shared data/log mount, no published port.
+  auth:
+    <<: *app
+    profiles: [auth]
+    restart: "no"
+    command: [auth-status]
+    depends_on:
+      gluetun:
+        condition: service_healthy
+        restart: true
+    environment:
+      HOME: /tmp
+      DNA_ENV_FILE: none
+      DNA_CODEX_AUTH_DIR: /auth
+    volumes:
+      - type: bind
+        source: ./auth
+        target: /auth
+        bind:
+          create_host_path: false
+
+  hub:
+    <<: *app
+    command: [hub]
+    depends_on:
+      gluetun:
+        condition: service_healthy
+        restart: true
+      api:
+        condition: service_healthy
+    environment:
+      TZ: ${TZ:-Asia/Taipei}
+      HOME: /tmp
+      DNA_ENV_FILE: none
+      DNA_API_URL: http://127.0.0.1:4850
+      DNA_HUB_HOST: 0.0.0.0
+      DNA_HUB_PORT: "4851"
+      DNA_HUB_HOSTS: ${DNA_HUB_HOSTS:-news.example.test}
+      DNA_CLIENT_TOKEN: ${DNA_CLIENT_TOKEN:-}
+      DNA_LOG_DIR: /logs/hub
+      DNA_LOG_PRETTY: "1"
+    volumes:
+      - type: bind
+        source: ./logs/hub
+        target: /logs/hub
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: [CMD, node, /opt/dna-container/healthcheck.mjs, hub]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  ticker:
+    <<: *app
+    profiles: [scheduler]
+    command: [ticker]
+    depends_on:
+      gluetun:
+        condition: service_healthy
+        restart: true
+      api:
+        condition: service_healthy
+    environment:
+      TZ: ${TZ:-Asia/Taipei}
+      HOME: /tmp
+      DNA_ENV_FILE: none
+      DNA_API_URL: http://127.0.0.1:4850
+      DNA_DEVICE_NAME: news
+      DNA_CRON_SCHEDULE: "* * * * *"
+      DNA_CRON_TOKEN: ${DNA_CRON_TOKEN:-}
+      DNA_AUTOMATION_ENABLED: ${DNA_AUTOMATION_ENABLED:-false}
+      DNA_LOG_DIR: /logs/ticker
+      DNA_LOG_PRETTY: "1"
+    volumes:
+      - type: bind
+        source: ./logs/ticker
+        target: /logs/ticker
+        bind:
+          create_host_path: false

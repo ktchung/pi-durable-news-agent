@@ -8,3 +8,26 @@ test-results/
 .DS_Store
 *.log
 .playwright-cli/
+
+# Private deployment settings and runtime state are never repository inputs.
+/.env.*
+!/.env.example
+!/.env.bridge.example
+/*.env
+/auth/
+/gluetun/
+/bridge-secrets/
+**/__pycache__/
+**/secrets/
+**/publisher-state/
+/integrations/*/state/
+/integrations/discord/client.json
+*.sqlite*
+*.db
+*.pem
+*.key
+*.token
+*-token
+*.receipt.json
+.ssh/
+/verification/
