@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /app
 COPY --from=build /app /app
 COPY docker/*.mjs docker/entrypoint.sh /opt/dna-container/
+RUN node --check /opt/dna-container/bridge.mjs
 RUN node --check /opt/dna-container/preflight.mjs \
     && node --check /opt/dna-container/healthcheck.mjs \
     && node --check /opt/dna-container/ticker.mjs \

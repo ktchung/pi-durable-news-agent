@@ -11,7 +11,12 @@ export function validate(role, env = process.env) {
   const token = (name) => {
     if ((env[name]?.trim().length ?? 0) < 32) errors.push(`${name} needs at least 32 characters`);
   };
-  if (!['api', 'hub', 'ticker', ...authRoles].includes(role)) return ['Unknown container role'];
+  if (!['api', 'hub', 'ticker', 'bridge', ...authRoles].includes(role)) return ['Unknown container role'];
+  // Only the backend client capability; never cron/provider/OAuth state.
+  if (role === 'bridge') {
+    token('DNA_CLIENT_TOKEN');
+    return errors;
+  }
   // Bootstrap auth without API/cron, Jev or paid API credentials.
   if (authRoles.includes(role)) {
     nonempty('DNA_CODEX_AUTH_DIR');
@@ -61,7 +66,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       process.exit(73);
     }
   }
-  if (!authRoles.includes(role)) {
+  if (!authRoles.includes(role) && role !== 'bridge') {
     try {
       const dirs = [process.env.DNA_LOG_DIR ?? '/logs'];
       if (role === 'api') dirs.push(process.env.DNA_DATA_DIR ?? '/data');
