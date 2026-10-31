@@ -354,13 +354,20 @@ try {
       ),
     "the top bar shows total spend, with model, jev and images on hover",
   );
-  const scheduleSelect = page.getByLabel("Sweep schedule");
+  const initialSchedule = await call("GET", "/v1/schedule");
+  const scheduleButton = page.getByRole("button", { name: "Edit sweep schedule" });
+  const scheduleDialog = page.getByRole("dialog", { name: "Sweep schedule" });
+  const schedulerStatus = page.getByTestId("scheduler-status");
+  await scheduleButton.click();
   check(
-    (await scheduleSelect.inputValue()) === "5" &&
-      (await scheduleSelect.locator("option").allInnerTexts()).join(",") ===
-        "Every minute,Every 5 min,Every 10 min,Every 15 min,Every 30 min,Every hour,Off",
-    "the top bar schedule shows every 5 minutes with the presets",
+    typeof initialSchedule.cronExpression === "string" &&
+      (await scheduleDialog.getByTestId("saved-cron").innerText()).trim() ===
+        initialSchedule.cronExpression &&
+      (await scheduleDialog.getByLabel("Cron expression").inputValue()) ===
+        initialSchedule.cronExpression,
+    `the schedule dialog shows the saved cron (${initialSchedule.cronExpression})`,
   );
+  await scheduleDialog.getByRole("button", { name: "Close" }).click();
   const cardsSelect = page.getByLabel("Cards per sweep");
   check((await cardsSelect.inputValue()) === "7", "the top bar shows 7 cards per sweep");
   await cardsSelect.selectOption("10");
@@ -370,14 +377,24 @@ try {
     "picking cards per sweep reaches the API",
   );
   await cardsSelect.selectOption("7");
-  await scheduleSelect.selectOption("off");
-  await page.locator(".agent-status", { hasText: "scheduled sweeps off" }).waitFor();
+  await scheduleButton.click();
+  await scheduleDialog.getByRole("button", { name: "Off", exact: true }).click();
+  await schedulerStatus.filter({ hasText: "Scheduled sweeps off" }).waitFor();
   check(
-    (await call("GET", "/v1/schedule")).everyMinutes === null,
-    "turning the schedule off reaches the API and the countdown says so",
+    (await call("GET", "/v1/schedule")).cronExpression === null,
+    "turning the schedule off reaches the API and the status says so",
   );
-  await scheduleSelect.selectOption("5");
-  await page.locator(".agent-status", { hasText: "next sweep in" }).waitFor();
+  await scheduleDialog.getByLabel("Cron expression").fill("*/5 * * * *");
+  await scheduleDialog.getByRole("button", { name: "Save" }).click();
+  await scheduleDialog.getByRole("button", { name: "Save" }).filter({ hasText: "Save" }).waitFor();
+  check(
+    (await call("GET", "/v1/schedule")).cronExpression === "*/5 * * * *" &&
+      !(await schedulerStatus.innerText()).includes("Scheduled sweeps off"),
+    "saving a cron expression in the dialog reaches the API and turns sweeps back on",
+  );
+  await scheduleDialog.getByLabel("Cron expression").fill(initialSchedule.cronExpression);
+  await scheduleDialog.getByRole("button", { name: "Save" }).click();
+  await scheduleDialog.getByRole("button", { name: "Close" }).click();
   check(
     (await page.locator(".model-button").count()) === 0 &&
       (await page.locator(".context-line").count()) === 0,
@@ -692,11 +709,14 @@ try {
     "the agent starts on the device default model",
   );
   await page.getByRole("button", { name: "Choose a model" }).click();
-  const haiku = page.locator('[data-model="anthropic/claude-haiku-5.5"]');
+  const { defaultModel } = await call("GET", "/v1/info");
+  const badges = page.locator(".model-list .badge");
   check(
-    (await haiku.locator(".badge").textContent()) === "Default",
-    "the model picker marks Claude Haiku 5.5 as the default",
+    (await badges.count()) === 1 &&
+      (await page.locator(`[data-model="${defaultModel}"] .badge`).textContent()) === "Default",
+    `the model picker marks only the server's default (${defaultModel}) as Default`,
   );
+  const haiku = page.locator('[data-model="anthropic/claude-haiku-5.5"]');
   await haiku.click();
   await page.waitForFunction(() =>
     document.querySelector(".model-button")?.textContent?.includes("Claude Haiku 5.5"),
