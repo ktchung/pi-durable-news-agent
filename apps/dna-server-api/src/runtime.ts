@@ -122,7 +122,12 @@ export async function openApp(config: Config, options: { log?: Logger } = {}): P
     catalog,
     quick,
     dates,
-    schedule: new Schedule({ store, cronSchedule: config.cronSchedule }),
+    schedule: new Schedule({
+      store,
+      cronSchedule: config.cronSchedule,
+      sweepCron: config.sweepCron,
+      sweepTimezone: config.sweepTimezone,
+    }),
   };
   const agents = createAgents(deps);
 

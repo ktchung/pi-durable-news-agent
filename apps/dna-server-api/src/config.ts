@@ -32,6 +32,9 @@ export interface Config {
   imageQuality: string;
   openaiKey?: string;
   cronSchedule: string;
+  /** Initial/migration seed only; the persisted reader schedule wins on restart. */
+  sweepCron: string;
+  sweepTimezone: string;
   clientToken: string;
   cronToken: string;
   stallMinutes: number;
@@ -87,6 +90,8 @@ export function loadConfig(argv = process.argv.slice(2), env = process.env): Con
     imageQuality: env.DNA_IMAGE_QUALITY ?? "low",
     openaiKey: env.OPENAI_API_KEY?.trim() || undefined,
     cronSchedule: env.DNA_CRON_SCHEDULE ?? "* * * * *",
+    sweepCron: env.DNA_SWEEP_CRON ?? "0 */8 * * *",
+    sweepTimezone: env.DNA_SWEEP_TIMEZONE || env.TZ || "UTC",
     clientToken: env.DNA_CLIENT_TOKEN?.trim() ?? "",
     cronToken: env.DNA_CRON_TOKEN?.trim() ?? "",
     stallMinutes: int(env.DNA_STALL_MINUTES, 30),

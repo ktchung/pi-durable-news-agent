@@ -182,9 +182,30 @@ export class DnaClient {
   schedule() {
     return this.call<ScheduleState>("schedule.get");
   }
-  /** Every N minutes (a preset), or null to turn scheduled sweeps off. */
-  setSchedule(everyMinutes: number | null) {
-    return this.call<ScheduleState>("schedule.set", { body: { everyMinutes } });
+  /** Five-field cron, null for off, or a legacy interval preset. Object form supports atomic edits. */
+  setSchedule(
+    value:
+      | number
+      | string
+      | null
+      | {
+          cronExpression?: string | null;
+          timezone?: string;
+          cardsPerSweep?: number;
+        },
+    timezone?: string,
+  ) {
+    const body =
+      typeof value === "object" && value !== null
+        ? value
+        : typeof value === "number"
+          ? { everyMinutes: value }
+          : { cronExpression: value, ...(timezone !== undefined ? { timezone } : {}) };
+    return this.call<ScheduleState>("schedule.set", { body });
+  }
+  /** Explicit cron setter for UI controls; null pauses scheduled sweeps. */
+  setCronSchedule(cronExpression: string | null, timezone?: string) {
+    return this.setSchedule(cronExpression, timezone);
   }
   /** The most cards one sweep presents (1 to 30). */
   setCardsPerSweep(cardsPerSweep: number) {

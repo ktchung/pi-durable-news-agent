@@ -1,36 +1,181 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Schedule } from "../src/news/schedule.ts";
+import { loadConfig } from "../src/config.ts";
 import { tempStore } from "./helpers.ts";
 
-test("a scheduled tick is due once per interval slot, never when off", async () => {
+test("sweep environment seeds are distinct from the every-minute transport tick", () => {
+  const defaults = loadConfig([], {});
+  assert.equal(defaults.sweepCron, "0 */8 * * *");
+  assert.equal(defaults.sweepTimezone, "UTC");
+  assert.equal(defaults.cronSchedule, "* * * * *");
+  assert.equal(loadConfig([], { TZ: "Europe/London" }).sweepTimezone, "Europe/London");
+  const configured = loadConfig([], {
+    DNA_SWEEP_CRON: "15 9 * * MON-FRI",
+    DNA_SWEEP_TIMEZONE: "Asia/Hong_Kong",
+    TZ: "Europe/London",
+  });
+  assert.equal(configured.sweepCron, "15 9 * * MON-FRI");
+  assert.equal(configured.sweepTimezone, "Asia/Hong_Kong");
+  assert.equal(configured.cronSchedule, "* * * * *");
+});
+
+test("eight-hour seed and one-time legacy migration preserve off, cards and canonical settings", () => {
   const { store, cleanup } = tempStore();
   try {
-    const schedule = new Schedule({ store, cronSchedule: "*/5 * * * *" });
-    assert.equal(schedule.every(), 5, "every 5 minutes by default");
-    assert.equal(
-      new Schedule({ store, cronSchedule: "* * * * *" }).presets().join(),
-      "1,5,10,15,30,60",
+    const deps = { store, cronSchedule: "* * * * *", sweepTimezone: "UTC" };
+    const first = new Schedule(deps);
+    assert.equal(first.state().cronExpression, "0 */8 * * *");
+    assert.equal(first.every(), 480);
+    store.settings.set("schedule", { everyMinutes: 5, cardsPerSweep: 12 });
+    const migrated = new Schedule(deps);
+    assert.equal(migrated.state().cronExpression, "0 */8 * * *");
+    assert.equal(migrated.cards(), 12);
+    migrated.set({ cronExpression: "15 9 * * MON-FRI", timezone: "Asia/Hong_Kong" });
+    const before = store.db.prepare("SELECT * FROM settings WHERE key = 'schedule'").get();
+    const changes = store.db.prepare("SELECT total_changes() AS n").get();
+    for (let i = 0; i < 3; i++) migrated.state();
+    assert.deepEqual(
+      store.db.prepare("SELECT * FROM settings WHERE key = 'schedule'").get(),
+      before,
     );
-    schedule.set({ everyMinutes: 15 });
-    const now = Date.now();
-    const slot = Math.floor(now / 900_000) * 900_000;
-    assert.deepEqual(schedule.due(now), { due: true }, "no cron sweep yet");
-    store.sweeps.create({ requestId: "c1", trigger: "cron", status: "completed" });
-    assert.equal(schedule.due(now).due, false, "this 15 minute slot already swept");
-    assert.equal(schedule.due(slot + 900_000).due, true, "the next slot is due");
-    assert.equal(schedule.next(now)!.getTime(), slot + 900_000);
-    store.sweeps.create({ requestId: "c2", trigger: "cron", status: "skipped" });
-    assert.equal(schedule.due(slot + 900_000).due, true, "a skipped sweep does not use up a slot");
-    schedule.set({ everyMinutes: null });
-    assert.deepEqual(schedule.due(slot + 900_000), {
-      due: false,
-      reason: "Scheduled sweeps are off",
+    assert.deepEqual(
+      store.db.prepare("SELECT total_changes() AS n").get(),
+      changes,
+      "GET makes no writes",
+    );
+    const restarted = new Schedule({
+      ...deps,
+      sweepCron: "* * * * *",
+      sweepTimezone: "Europe/London",
     });
+    assert.equal(restarted.state().cronExpression, "15 9 * * MON-FRI");
+    assert.equal(restarted.state().timezone, "Asia/Hong_Kong");
+    assert.equal(restarted.every(), null, "custom cron is not representable as a fixed interval");
+    store.settings.set("schedule", { everyMinutes: null, cardsPerSweep: 9 });
+    const off = new Schedule(deps);
+    assert.equal(off.state().cronExpression, null);
+    assert.equal(off.cards(), 9);
+    assert.equal(off.next(), undefined);
+    assert.equal(new Schedule(deps).state().cronExpression, null);
+    store.settings.set("schedule", { everyMinutes: 30, cardsPerSweep: 4 });
     assert.equal(
-      new Schedule({ store, cronSchedule: "*/15 * * * *" }).presets().join(),
-      "15,30,60",
+      new Schedule({ ...deps, sweepCron: "15 9 * * MON-FRI" }).state().cronExpression,
+      "15 9 * * MON-FRI",
     );
+  } finally {
+    cleanup();
+  }
+});
+
+test("only matching minutes are due; no startup/change catch-up and durable same-minute dedupe", () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const deps = { store, cronSchedule: "* * * * *", sweepTimezone: "UTC" };
+    const schedule = new Schedule(deps);
+    const at = (iso: string) => Date.parse(`2026-10-29T${iso}Z`);
+    for (const time of ["07:59:59.999", "08:01:00", "15:59:59.999"])
+      assert.equal(schedule.due(at(time)).due, false, time);
+    assert.equal(schedule.due(at("08:00:00")).due, true);
+    assert.equal(schedule.due(at("08:00:59.999")).due, true);
+    assert.equal(schedule.nextScheduled(at("08:00:00"))!.toISOString(), "2026-10-29T16:00:00.000Z");
+    assert.equal(schedule.next(at("08:00:00")), undefined);
+    schedule.recordStarted(at("08:00:30"));
+    assert.equal(schedule.due(at("08:00:59")).due, false);
+    assert.equal(
+      new Schedule(deps).due(at("08:00:59")).due,
+      false,
+      "restart keeps the claimed minute",
+    );
+    schedule.set({ cronExpression: "0 8,16 * * *" });
+    assert.equal(schedule.due(at("08:00:59")).due, false, "editing cannot reuse a minute");
+    assert.equal(schedule.due(at("16:00:00")).due, true);
+    assert.equal(schedule.due(at("16:01:00")).due, false);
+    schedule.set({ cronExpression: null });
+    assert.equal(schedule.due(at("16:00:00")).due, false);
+  } finally {
+    cleanup();
+  }
+});
+
+test("cron lists/ranges/steps, DOM/DOW OR semantics, timezones and DST wall-clock matching", () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const schedule = new Schedule({ store, cronSchedule: "* * * * *" });
+    const due = (iso: string) => schedule.due(Date.parse(iso)).due;
+    schedule.set({ cronExpression: "5,20-40/10 9-17/2 * * MON-FRI", timezone: "Asia/Hong_Kong" });
+    assert.equal(due("2026-10-29T01:30:59Z"), true);
+    assert.equal(due("2026-10-29T02:30:00Z"), false);
+    assert.equal(due("2026-10-31T01:30:00Z"), false);
+    schedule.set({ cronExpression: "0 9 1 * MON", timezone: "UTC" });
+    assert.equal(due("2026-10-01T09:00:00Z"), true, "first of month, not Monday");
+    assert.equal(due("2026-10-05T09:00:00Z"), true, "Monday, not first");
+    assert.equal(due("2026-10-06T09:00:00Z"), false);
+    schedule.set({ cronExpression: "30 2 * * *", timezone: "America/New_York" });
+    assert.equal(due("2026-03-07T07:30:00Z"), true);
+    assert.equal(due("2026-03-08T07:30:00Z"), false, "missing 02:30 is not caught up at 03:30");
+    assert.equal(
+      schedule.nextScheduled(Date.parse("2026-03-08T06:00:00Z"))!.toISOString(),
+      "2026-03-09T06:30:00.000Z",
+    );
+    schedule.set({ cronExpression: "30 1 * * *" });
+    assert.equal(due("2026-11-01T05:30:00Z"), true);
+    assert.equal(
+      due("2026-11-01T06:30:00Z"),
+      true,
+      "repeated wall minutes are distinct absolute slots",
+    );
+    assert.equal(
+      schedule.nextScheduled(Date.parse("2026-11-01T05:30:00Z"))!.toISOString(),
+      "2026-11-01T06:30:00.000Z",
+    );
+    schedule.set({ cronExpression: "0 9 * JAN,MAR THU", timezone: "UTC" });
+    assert.equal(due("2026-01-01T09:00:00Z"), true);
+    assert.equal(due("2026-02-05T09:00:00Z"), false);
+  } finally {
+    cleanup();
+  }
+});
+
+test("invalid changes reject atomically, legacy presets convert, and heartbeat is process-local", () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const deps = { store, cronSchedule: "* * * * *", sweepTimezone: "UTC" };
+    const schedule = new Schedule(deps);
+    const saved = () => store.settings.get("schedule", {});
+    const before = saved();
+    for (const patch of [
+      { cronExpression: "@daily" },
+      { cronExpression: "0 0 */8 * * *" },
+      { cronExpression: "60 * * * *" },
+      { cronExpression: "* * * * *", timezone: "Not/AZone" },
+      { cronExpression: "* * * * *", everyMinutes: 5 },
+      { timezone: "+08:00" },
+      { cronExpression: "* * * * *", cardsPerSweep: 31 },
+      { everyMinutes: 7 },
+      { cronExpression: "" },
+      { cronExpression: "H * * * *" },
+      { cronExpression: "HH * * * *" },
+      { cronExpression: "H,5 * * * *" },
+      { cronExpression: "H(0-15)/5 * * * *" },
+      { cronExpression: "0 H/3 * * *" },
+    ]) {
+      assert.throws(() => schedule.set(patch));
+      assert.deepEqual(saved(), before);
+    }
+    schedule.set({ everyMinutes: 15 });
+    assert.equal(schedule.state().cronExpression, "*/15 * * * *");
+    const now = Date.parse("2026-10-29T08:01:00Z");
+    assert.equal(schedule.state(now).schedulerStatus, "waiting");
+    assert.ok(schedule.state(now).nextScheduledAt);
+    assert.equal(schedule.state(now).nextSweepAt, undefined);
+    schedule.recordTick(now);
+    assert.equal(schedule.state(now + 90_000).schedulerStatus, "running");
+    assert.ok(schedule.state(now).nextSweepAt);
+    assert.equal(schedule.state(now + 90_001).schedulerStatus, "stale");
+    assert.equal(schedule.state(now + 90_001).nextSweepAt, undefined);
+    assert.equal(schedule.next(now + 90_001), undefined);
+    assert.equal(new Schedule(deps).state(now).schedulerStatus, "waiting");
   } finally {
     cleanup();
   }

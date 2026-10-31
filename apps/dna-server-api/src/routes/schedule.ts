@@ -1,27 +1,20 @@
-// How often scheduled sweeps run and how many cards each presents: GET the setting with its presets and the next
-// sweep, PATCH everyMinutes (a preset, or null for off), cardsPerSweep (1 to 30), or both.
+// Persisted cron/timezone/card settings. Heartbeats are accepted only by the cron workflow, never here.
 import { invalid } from "../errors.ts";
-import { MAX_CARDS } from "../news/schedule.ts";
-import { bodyOf, num, type Handlers, type RouteDeps } from "./types.ts";
+import type { ScheduleSetting } from "../news/schedule.ts";
+import { bodyOf, type Handlers, type RouteDeps } from "./types.ts";
 
 export function scheduleRoutes({ app }: RouteDeps): Handlers<"schedule.get" | "schedule.set"> {
   return {
     "schedule.get": (_req, res) => res.json(app.schedule.state()),
     "schedule.set": (req, res) => {
       const body = bodyOf(req);
-      const presets = app.schedule.presets();
-      const every = body.everyMinutes;
-      if (every !== undefined && every !== null && !presets.includes(every as number))
-        throw invalid(`everyMinutes must be one of ${presets.join(", ")}, or null for off`);
-      const cards = num(body, "cardsPerSweep", { min: 1, max: MAX_CARDS, integer: true });
-      if (every === undefined && cards === undefined)
-        throw invalid("Send everyMinutes, cardsPerSweep, or both");
-      const state = app.schedule.set({
-        ...(every !== undefined ? { everyMinutes: every as number | null } : {}),
-        ...(cards !== undefined ? { cardsPerSweep: cards } : {}),
-      });
+      const allowed = ["cronExpression", "timezone", "everyMinutes", "cardsPerSweep"];
+      if (!Object.keys(body).length || Object.keys(body).some((key) => !allowed.includes(key)))
+        throw invalid("Send only cronExpression, timezone, cardsPerSweep, or legacy everyMinutes");
+      const state = app.schedule.set(body as ScheduleSetting);
       app.log.info("schedule.set", {
-        everyMinutes: state.everyMinutes,
+        cronExpression: state.cronExpression,
+        timezone: state.timezone,
         cardsPerSweep: state.cardsPerSweep,
       });
       app.bus.publish({ type: "schedule", schedule: state });

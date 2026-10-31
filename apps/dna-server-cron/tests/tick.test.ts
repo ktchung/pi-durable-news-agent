@@ -60,6 +60,8 @@ test("slots floor to the tick in UTC", () => {
 });
 
 test("the first tick gets 202, a second tick in the same slot replays the same sweep", async () => {
+  // Transport replay is independent of the production eight-hour sweep default.
+  await s.client.setSchedule({ cronExpression: "* * * * *", timezone: "UTC" });
   const first = runTick({ DNA_API_URL: s.base, DNA_CRON_TOKEN: s.tokens.cron });
   assert.equal(first.code, 0, first.out);
   assert.match(first.out, /accepted sweep 1/);

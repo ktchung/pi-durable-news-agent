@@ -384,6 +384,10 @@ test("set_schedule changes how often sweeps run and refuses intervals the tick c
     const cards = await callTool(app.main, "set_schedule", { cards: 12 });
     assert.match(cards.text, /at most 12 cards/);
     assert.equal(app.schedule.cards(), 12);
+    app.schedule.set({ cronExpression: "0 9 * * MON-FRI", timezone: "UTC" });
+    const custom = await callTool(app.main, "set_schedule", { cards: 11 });
+    assert.match(custom.text, /Sweeps follow cron 0 9 \* \* MON-FRI/);
+    assert.doesNotMatch(custom.text, /sweeps are off/i);
     await callTool(app.main, "set_schedule", { cards: 7 });
     const bad = await callTool(app.main, "set_schedule", { every: "7" });
     assert.equal(bad.isError, true);

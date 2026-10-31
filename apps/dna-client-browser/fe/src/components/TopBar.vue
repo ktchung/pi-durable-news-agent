@@ -2,7 +2,6 @@
 import { computed } from "vue";
 import {
   Activity,
-  Clock,
   Coins,
   LoaderCircle,
   PanelLeft,
@@ -15,28 +14,18 @@ import {
 import { usd } from "@dna/sdk";
 import { layout, toggle } from "../client/layout";
 import { go } from "../client/route";
-import { agentState, api, attempt, connection, feed, info, now, ui } from "../client/store";
+import { agentState, api, attempt, connection, feed, info, ui } from "../client/store";
+import ScheduleControls from "./ScheduleControls.vue";
 
 const busy = computed(() => agentState.value?.busy ?? false);
 const schedule = computed(() => agentState.value?.schedule);
-const countdown = computed(() => {
-  if (schedule.value && schedule.value.everyMinutes === null) return "scheduled sweeps off";
-  const at = agentState.value?.nextSweepAt ?? info.value?.nextSweepAt;
-  if (!at) return "no sweep scheduled";
-  const s = Math.max(0, Math.round((Date.parse(at) - now.value) / 1000));
-  return `next sweep in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-});
-const every = (m: number) =>
-  m === 60 ? "Every hour" : m === 1 ? "Every minute" : `Every ${m} min`;
+
 const CARD_CHOICES = [3, 5, 7, 10, 15, 20, 30];
 async function setCards(value: string) {
   const next = await attempt(() => api.setCardsPerSweep(Number(value)));
   if (next) feed.apply({ type: "schedule", schedule: next });
 }
-async function setSchedule(value: string) {
-  const next = await attempt(() => api.setSchedule(value === "off" ? null : Number(value)));
-  if (next) feed.apply({ type: "schedule", schedule: next });
-}
+
 /** All time: what the agent's model, jev and image generation have cost on this device. */
 const spend = computed(() => agentState.value?.spend);
 </script>
@@ -50,7 +39,7 @@ const spend = computed(() => agentState.value?.spend);
         <span class="tagline">News Worth Your Attention</span>
       </div>
     </div>
-    <div class="agent-status" data-cap="status" :class="{ working: busy }" aria-live="polite">
+    <div class="agent-status" data-cap="status" :class="{ working: busy }">
       <template v-if="connection !== 'live'"
         ><WifiOff :size="16" /><span>{{
           connection === "unauthorized" ? "Token refused" : "Reconnecting"
@@ -59,20 +48,7 @@ const spend = computed(() => agentState.value?.spend);
       <template v-else-if="busy"
         ><LoaderCircle :size="16" class="spin" /><span>Working</span></template
       >
-      <template v-else
-        ><Clock :size="16" /><span>Waiting, {{ countdown }}</span></template
-      >
-      <select
-        v-if="schedule"
-        class="schedule-select"
-        data-cap="schedule"
-        aria-label="Sweep schedule"
-        :value="schedule.everyMinutes ?? 'off'"
-        @change="setSchedule(($event.target as HTMLSelectElement).value)"
-      >
-        <option v-for="m in schedule.presets" :key="m" :value="m">{{ every(m) }}</option>
-        <option value="off">Off</option>
-      </select>
+      <ScheduleControls />
       <select
         v-if="schedule"
         class="schedule-select"
@@ -141,3 +117,28 @@ const spend = computed(() => agentState.value?.spend);
     </div>
   </header>
 </template>
+
+<style scoped>
+/* Let the compact status row wrap instead of pushing controls off small screens. */
+.topbar {
+  flex-wrap: wrap;
+}
+.agent-status {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .topbar {
+    gap: 12px;
+    padding: 12px;
+  }
+  .agent-status {
+    width: 100%;
+    padding: 6px 8px;
+  }
+  .topbar-right {
+    margin-left: 0;
+    flex-wrap: wrap;
+  }
+}
+</style>
