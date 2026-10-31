@@ -2,7 +2,7 @@
   "name": "claim-support",
   "version": 1,
   "description": "One yes or no per claim: does the evidence support it",
-  "model": "~typesafe/jev-latest",
+
   "each": { "over": "claims", "as": "claim" },
   "state": {
     "evidence": "{{evidence}}"

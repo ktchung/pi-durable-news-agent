@@ -2,7 +2,7 @@
   "name": "worth-attention",
   "version": 1,
   "description": "Is one item worth an agentic engineer's attention today",
-  "model": "~typesafe/jev-latest",
+
   "state": {
     "title": "{{title}}",
     "source": "{{source}}",

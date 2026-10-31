@@ -2,7 +2,7 @@
   "name": "importance",
   "version": 1,
   "description": "How important one gated item is to this reader right now, to pick the few a sweep presents",
-  "model": "~typesafe/jev-latest",
+
   "state": {
     "title": "{{title}}",
     "source": "{{source}}",
