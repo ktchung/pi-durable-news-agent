@@ -93,6 +93,8 @@ h4 {
   display: flex;
   flex-direction: column;
   height: 100%;
+  /* The visible height on phones, so the composer and the bottom bar never sit under the browser's toolbar. */
+  height: 100dvh;
 }
 .topbar {
   display: flex;
@@ -1548,6 +1550,9 @@ h4 {
 .list-row:hover {
   background: var(--panel);
 }
+.exec-back {
+  display: none;
+}
 .exec-detail {
   overflow: auto;
   padding: var(--s3);
@@ -2035,4 +2040,294 @@ a.source:hover {
   flex-direction: column;
   gap: 12px;
   padding: 18px var(--s2);
+}
+
+/* Narrow screens (under NARROW_PX in client/layout.ts): News and Agent share the screen, one at a time, switched
+   from the bottom bar. Both stay mounted so scroll positions and the draft survive a switch. */
+.columns.narrow {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.columns.narrow > .column {
+  grid-area: 1 / 1;
+}
+.pane-hidden {
+  visibility: hidden;
+}
+.mobile-nav {
+  display: flex;
+  flex: none;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.mobile-tab {
+  position: relative;
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+  margin-top: -1px;
+  border-top: 2px solid transparent;
+  color: var(--muted);
+  font-size: 13px;
+}
+.mobile-tab[aria-pressed="true"] {
+  color: var(--text);
+  border-top-color: var(--accent);
+}
+.mobile-tab small {
+  color: var(--faint);
+  font-family: var(--mono);
+}
+.mobile-tab .spin {
+  color: var(--accent);
+}
+.mobile-unseen {
+  width: 6px;
+  height: 6px;
+  margin: -12px 0 0 -4px;
+  background: var(--accent);
+}
+
+@media (max-width: 899px) {
+  /* Top bar: the brand and the icon buttons on one line, the agent status full width below */
+  .topbar {
+    gap: 8px 12px;
+    padding: max(10px, env(safe-area-inset-top)) max(var(--s2), env(safe-area-inset-right)) 10px
+      max(var(--s2), env(safe-area-inset-left));
+  }
+  .brand {
+    min-width: 0;
+    gap: 10px;
+  }
+  .brand > div {
+    min-width: 0;
+  }
+  .brand strong {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .brand-mark {
+    flex: none;
+    width: 28px;
+    height: 28px;
+  }
+  .tagline,
+  .stat.device,
+  .column-toggle {
+    display: none;
+  }
+  .topbar-right {
+    gap: 4px;
+  }
+  .topbar-right .stat {
+    margin-right: 4px;
+  }
+  .topbar-right .bar-button {
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+  }
+  .topbar-right .bar-button span {
+    display: none;
+  }
+  .agent-status {
+    order: 3;
+    width: 100%;
+    padding: 4px 10px;
+  }
+
+  /* News: tabs scroll sideways, the search box takes what is left */
+  .feed-tabs {
+    padding: 0 4px;
+    scrollbar-width: none;
+  }
+  .feed-search {
+    width: auto;
+    flex: 0 1 180px;
+    min-width: 120px;
+    margin-right: var(--s1);
+  }
+  .bottom-inner {
+    padding: var(--s1) 12px var(--s2);
+  }
+
+  /* Agent: the composer row wraps rather than squeezing Send */
+  .composer {
+    padding: 10px 12px 12px;
+  }
+  .composer-row {
+    flex-wrap: wrap;
+  }
+  .when-busy > span {
+    display: none;
+  }
+  .msg {
+    max-width: 100%;
+  }
+  /* Model controls: each row wraps, its model select takes the width */
+  .composer .model-row {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+  .composer .model-row.quick .control-label {
+    flex-basis: 100%;
+  }
+  .composer .model-row.quick > select {
+    flex: 1 1 160px;
+    min-width: 0;
+    max-width: none;
+  }
+
+  /* Dialogs: Settings fills the screen, tabs scroll sideways */
+  .modal.settings-modal {
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+    border: 0;
+  }
+  .settings-modal header,
+  .drawer-body {
+    padding-left: var(--s2);
+    padding-right: var(--s2);
+  }
+  .tabs {
+    padding: 0 var(--s1);
+    overflow-x: auto;
+    scrollbar-width: none;
+    flex: none;
+  }
+  .tab {
+    flex: none;
+    white-space: nowrap;
+  }
+  .kw-row,
+  .src-row {
+    flex-wrap: wrap;
+  }
+  .kw-term {
+    flex-basis: 100%;
+  }
+  .kw-row input[type="range"] {
+    flex: 1;
+  }
+  .modal {
+    width: min(560px, calc(100vw - 2 * var(--s2)));
+    max-height: calc(100dvh - 2 * var(--s2));
+    padding: var(--s2);
+  }
+
+  /* Executions: the list, or one execution with a way back */
+  .exec-head {
+    padding: max(10px, env(safe-area-inset-top)) var(--s2) 10px;
+    gap: 6px;
+  }
+  .exec-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .exec-body.picked .exec-list,
+  .exec-body:not(.picked) .exec-detail {
+    display: none;
+  }
+  .exec-list {
+    border-right: 0;
+  }
+  .exec-detail {
+    padding: var(--s2);
+  }
+  .exec-back {
+    display: inline-flex;
+    align-self: flex-start;
+    margin: -8px 0 0 -10px;
+  }
+}
+
+/* A narrow news list: the rail becomes a line above its card, and the card stacks its image on top. */
+@container (max-width: 560px) {
+  .feed-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .rail {
+    flex-direction: row;
+    gap: 8px;
+    padding-top: 0;
+    text-align: left;
+  }
+  .rail::before {
+    display: none;
+  }
+  .rail-node {
+    order: -1;
+    width: 24px;
+    height: 24px;
+  }
+  .rail-time {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+    padding: 0;
+  }
+  .rail-keyword {
+    max-width: none;
+    margin-left: auto;
+    padding: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .timeline-head {
+    padding-left: 0;
+  }
+  .card {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+  }
+  .card-media {
+    margin: 0;
+    aspect-ratio: 2 / 1;
+  }
+  /* No image to show: a thin strip, not a large empty frame */
+  .card-media.empty {
+    aspect-ratio: 6 / 1;
+  }
+  .card-main {
+    flex: none;
+    height: 132px;
+  }
+  .card-meta .source {
+    max-width: none;
+    min-width: 0;
+  }
+  .card-meta .time {
+    white-space: nowrap;
+  }
+}
+
+/* Touch screens: controls a finger can hit */
+@media (pointer: coarse) {
+  .icon-button.small {
+    width: 36px;
+    height: 36px;
+  }
+  .fb {
+    min-width: 36px;
+    min-height: 36px;
+    justify-content: center;
+  }
+  .feed-tab,
+  .feed-tab.closable > button:first-child {
+    min-height: 44px;
+  }
+  .tab-close {
+    padding: 10px 8px;
+    margin-right: 0;
+  }
 }

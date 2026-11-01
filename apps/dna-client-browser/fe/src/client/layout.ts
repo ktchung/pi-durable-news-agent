@@ -1,9 +1,23 @@
 // Column layout and feed tabs in localStorage["dna.layout.v1"]: either column collapses to zero width, never both.
 // The News tab is always first. Timeline tabs open from a card's timeline chip; search, keyword and url tabs open from
 // the search box or when the agent calls open_tab. highlight_item switches to News and flashes one card.
+// Below NARROW_PX the two columns become two panes that share the screen, switched from the bottom bar; the saved
+// column toggles and width only apply above it.
 import { nextTick, reactive, ref, watch } from "vue";
 import type { TabBy } from "@dna/sdk";
-import { notify, onFrame } from "./store";
+import { composerFocus, notify, onFrame } from "./store";
+
+/** The widest screen that shows one pane at a time (phones and small tablets). */
+export const NARROW_PX = 900;
+const narrowQuery =
+  typeof window !== "undefined" ? window.matchMedia(`(max-width: ${NARROW_PX - 1}px)`) : undefined;
+/** True on a narrow screen: one pane at a time, switched by MobileNav. */
+export const narrow = ref(narrowQuery?.matches ?? false);
+narrowQuery?.addEventListener("change", (e) => (narrow.value = e.matches));
+/** The pane a narrow screen shows. Not saved: a phone always opens on News. */
+export const pane = ref<"feed" | "agent">("feed");
+// "Reference in chat" focuses the composer, so a narrow screen shows the agent.
+watch(composerFocus, () => (pane.value = "agent"));
 
 export type FeedTab =
   | { kind: "timeline"; id: number; title: string }
@@ -77,6 +91,7 @@ export function openTab(t: FeedTab) {
   else if (open.kind === "timeline" && t.kind === "timeline") open.title = t.title;
   layout.tab = key;
   layout.feed = true;
+  pane.value = "feed";
 }
 
 export const openTimeline = (t: { id: number; title: string }) =>
@@ -111,6 +126,7 @@ let highlightTimer: ReturnType<typeof setTimeout> | undefined;
 /** Switch to News, scroll the card to the middle of the list and highlight it. */
 export function highlight(cardId: number) {
   layout.feed = true;
+  pane.value = "feed";
   layout.tab = "news";
   highlighted.value = cardId;
   clearTimeout(highlightTimer);
