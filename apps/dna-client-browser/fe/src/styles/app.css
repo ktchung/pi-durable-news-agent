@@ -290,6 +290,13 @@ h4 {
   font-weight: 600;
   font-size: 12px;
 }
+.top-pane .bottom-inner {
+  margin-top: 0;
+}
+.top-pane .new-items {
+  top: 12px;
+  bottom: auto;
+}
 .empty {
   color: var(--muted);
   text-align: center;

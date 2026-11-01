@@ -19,9 +19,9 @@ const counts = computed(() => {
     if (c.timeline) out.set(c.timeline.id, Math.max(out.get(c.timeline.id) ?? 0, c.timeline.count));
   return out;
 });
-/** News in the order it arrived, the newest card last and lowest; each rail shows when the item was published. */
+/** News newest first: the latest card sits on top; each rail shows when the item was published. */
 const news = computed(() =>
-  feedState.value.news.filter((c) => c.feedback?.signal !== "less").sort((a, b) => a.id - b.id),
+  feedState.value.news.filter((c) => c.feedback?.signal !== "less").sort((a, b) => b.id - a.id),
 );
 const label = (t: FeedTab) =>
   t.kind === "timeline" ? (feed.timeline(t.id)[0]?.timeline?.title ?? t.title) : t.value;
@@ -68,7 +68,7 @@ const active = computed(() => layout.tabs.find((t) => tabKey(t) === layout.tab))
       </nav>
       <SearchBox />
     </div>
-    <BottomPane v-if="!active" :count="news.length" label="News" class="feed-list">
+    <BottomPane v-if="!active" :count="news.length" label="News" from="top" class="feed-list">
       <LoadingRows v-if="!loaded" kind="cards" :count="3" label="Loading the news" />
       <p v-else-if="!news.length" class="empty">
         Nothing yet. The agent sweeps on its schedule and only presents news worth your attention.
