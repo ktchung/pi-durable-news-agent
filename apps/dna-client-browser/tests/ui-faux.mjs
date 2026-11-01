@@ -200,9 +200,9 @@ try {
   );
   const boxes = await news.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().top));
   check(
-    ids.every((id, i) => i === 0 || id > ids[i - 1]) &&
+    ids.every((id, i) => i === 0 || id < ids[i - 1]) &&
       boxes.every((y, i) => i === 0 || y > boxes[i - 1]),
-    "news runs in arrival order, the newest card last and lowest",
+    "news runs newest first, the latest card on top",
   );
   const ranked = await page.locator('[data-testid="hfs"]').evaluateAll((els) =>
     els.map((el) =>
