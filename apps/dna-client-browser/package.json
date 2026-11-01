@@ -9,7 +9,7 @@
     "build": "vue-tsc --noEmit -p fe/tsconfig.json && tsc -p hub/tsconfig.json && vite build --config fe/vite.config.ts",
     "check": "vue-tsc --noEmit -p fe/tsconfig.json && tsc -p hub/tsconfig.json",
     "lint": "oxlint fe hub tests",
-    "test": "node tests/ui-faux.mjs"
+    "test": "node tests/ui-faux.mjs && node fe/tests/schedule-controls.mjs && node fe/tests/model-controls.mjs"
   },
   "dependencies": {
     "@dna/durable-agent": "*",
@@ -23,7 +23,7 @@
   "devDependencies": {
     "@types/express": "5.0.6",
     "@vitejs/plugin-vue": "6.0.10",
-    "vite": "8.3.2",
+    "vite": "8.3.5",
     "vue-tsc": "3.3.13"
   }
 }

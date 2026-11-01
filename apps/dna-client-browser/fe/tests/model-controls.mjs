@@ -33,7 +33,7 @@ const server = await createServer({
 let browser;
 try {
   await server.listen();
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ channel: "chrome", headless: !process.env.HEADED });
   const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));

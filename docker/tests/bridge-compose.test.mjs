@@ -1,20 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { compose, runCompose } from './compose-command.mjs';
 import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const base = process.env.DNA_TEST_BASE || root;
-const executable = process.env.DNA_TEST_COMPOSE;
 function config(overrides = {}) {
   const args = ['--env-file', '/dev/null', '-f', base + '/compose.yaml', '-f', root + 'compose.hermes-bridge.yaml',
     '--profile', 'auth', '--profile', 'scheduler', 'config', '--format', 'json'];
-  const result = spawnSync(executable, args, { env: { PATH: process.env.PATH, TMPDIR: process.env.TMPDIR,
-    COMPOSE_DISABLE_ENV_FILE: '1', ...overrides }, encoding: 'utf8' });
+  const result = runCompose(args, { PATH: process.env.PATH, TMPDIR: process.env.TMPDIR,
+    COMPOSE_DISABLE_ENV_FILE: '1', ...overrides });
   assert.equal(result.status, 0, result.stderr);
   return JSON.parse(result.stdout);
 }
 
-test('scoped bridge alone joins the external network, using the same image without inline code or provider secrets', { skip: !executable }, () => {
+test('scoped bridge alone joins the external network, using the same image without inline code or provider secrets', { skip: !compose }, () => {
   const document = config();
   const services = document.services, bridge = services['hermes-bridge'];
   assert.deepEqual(Object.keys(services).sort(), ['api', 'auth', 'gluetun', 'hermes-bridge', 'hub', 'ticker']);
@@ -51,7 +50,7 @@ test('scoped bridge alone joins the external network, using the same image witho
   assert.deepEqual(bridge.healthcheck.test, ['CMD', 'node', '/opt/dna-container/healthcheck.mjs', 'bridge']);
 });
 
-test('bridge host token paths, existing network, both aliases, image and upstream are portable settings', { skip: !executable }, () => {
+test('bridge host token paths, existing network, both aliases, image and upstream are portable settings', { skip: !compose }, () => {
   const document = config({ DNA_IMAGE: 'example/news:review', DNA_BRIDGE_NETWORK: 'example-control',
     DNA_BRIDGE_ALIAS: 'example-news', DNA_BRIDGE_PRIVATE_ALIAS: 'example-api',
     DNA_BRIDGE_UPSTREAM: 'http://example-api:4850',

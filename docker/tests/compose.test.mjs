@@ -1,17 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { compose, runCompose } from './compose-command.mjs';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
-const executable = process.env.DNA_TEST_COMPOSE;
 function config(profiles = [], fixtureEnv = {}) {
   const args = ['--env-file', '/dev/null', '-f', root + 'compose.yaml'];
   for (const profile of profiles) args.push('--profile', profile);
   args.push('config', '--format', 'json');
   // No inherited secrets, .env values or active profiles. No Docker daemon calls.
-  const result = spawnSync(executable, args, { env: { PATH: process.env.PATH, HOME: process.env.HOME,
-    TMPDIR: process.env.TMPDIR, COMPOSE_DISABLE_ENV_FILE: '1', ...fixtureEnv }, encoding: 'utf8' });
+  const result = runCompose(args, { PATH: process.env.PATH, HOME: process.env.HOME,
+    TMPDIR: process.env.TMPDIR, COMPOSE_DISABLE_ENV_FILE: '1', ...fixtureEnv });
   assert.equal(result.status, 0, result.stderr);
   return JSON.parse(result.stdout);
 }
@@ -54,7 +53,7 @@ function assertBoundaries(document) {
   assert.equal(String(ports[0].published), '4851');
 }
 
-test('base Compose defaults to Codex with isolated API auth and no auth helper/ticker running', { skip: !executable }, () => {
+test('base Compose defaults to Codex with isolated API auth and no auth helper/ticker running', { skip: !compose }, () => {
   const document = config();
   assert.deepEqual(Object.keys(document.services).sort(), ['api', 'gluetun', 'hub']);
   assertBoundaries(document);
@@ -74,7 +73,7 @@ test('base Compose defaults to Codex with isolated API auth and no auth helper/t
   assert.equal(explicitZone.services.api.environment.DNA_SWEEP_TIMEZONE, 'Asia/Taipei');
 });
 
-test('auth profile contains only dedicated auth mount and no API, cron, Jev or provider keys', { skip: !executable }, () => {
+test('auth profile contains only dedicated auth mount and no API, cron, Jev or provider keys', { skip: !compose }, () => {
   const document = config(['auth']);
   assertBoundaries(document);
   assert.equal(document.services.ticker, undefined);
@@ -86,7 +85,7 @@ test('auth profile contains only dedicated auth mount and no API, cron, Jev or p
   assert.equal(auth.volumes[0].source, document.services.api.volumes.find((volume) => volume.target === '/auth').source);
 });
 
-test('scheduler profile remains private with automation disabled by default', { skip: !executable }, () => {
+test('scheduler profile remains private with automation disabled by default', { skip: !compose }, () => {
   const document = config(['scheduler', 'auth']);
   assertBoundaries(document);
   assert.equal(document.services.ticker.environment.DNA_AUTOMATION_ENABLED, 'false');

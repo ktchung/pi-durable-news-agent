@@ -32,7 +32,7 @@ const server = await createServer({
 let browser;
 try {
   await server.listen();
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ channel: "chrome", headless: !process.env.HEADED });
   const page = await browser.newPage({ viewport: { width: 1360, height: 900 } });
   await page.clock.install({ time: new Date("2026-10-29T12:00:00Z") });
   await page.clock.pauseAt(new Date("2026-10-29T12:00:00Z"));
